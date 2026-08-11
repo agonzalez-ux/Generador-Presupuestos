@@ -475,7 +475,7 @@ export default function Home() {
               <Field label="Indicación adicional" hint="Opcional: pide que sea breve, conciso, elegante o que destaque un aspecto">
                 <input maxLength={500} spellCheck autoCorrect="on" placeholder="Ej. Hazlo elegante, cercano y muy conciso" value={aiInstruction} onChange={(e) => setAiInstruction(e.target.value)} />
               </Field>
-              <div className="writing-tools"><span>Funciona en tu navegador y no consume ninguna API de pago.</span><button type="button" className="improve-button" disabled={aiBrief.trim().length < 20 || aiLoading} onClick={applyWithAI}>✦ Aplicar gratis</button></div>
+              <div className="writing-tools"><span>Funciona en tu navegador y no consume ninguna API de pago.</span><button type="button" className="improve-button" disabled={aiBrief.trim().length < 20 || aiLoading} onClick={applyWithAI}>✦ Generar</button></div>
               {aiStatus && <div className={`ai-result ${aiStatus.kind}`}><strong>{aiStatus.kind === "success" ? "✓ Propuesta actualizada" : "No se pudo aplicar"}</strong><p>{aiStatus.message}</p></div>}
             </div>
             <Field label="Descripción final de la experiencia" hint="El asistente la redactará aquí. Después puedes cambiar cualquier palabra">
