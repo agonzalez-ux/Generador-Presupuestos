@@ -121,24 +121,31 @@ export default function Home() {
       const selected = sheets[0];
       if (!selected?.rows.length) throw new Error("empty");
 
-      const headerIndex = selected.rows.slice(0, 30).findIndex((row) => row.some((cell) => /importe|precio|coste|inversi[oó]n|presupuesto/i.test(rowText(cell))));
+      const amountHeaderPattern = /^(importe|importe total|precio total|coste total|total partida|pvp)$/i;
+      const categoryHeaderPattern = /[áa]rea|categor[ií]a|secci[oó]n|grupo|familia|cap[ií]tulo|partida|concepto|servicio|descripci[oó]n|detalle/i;
+      const strictHeaderIndex = selected.rows.slice(0, 40).findIndex((row) =>
+        row.some((cell) => amountHeaderPattern.test(rowText(cell))) && row.some((cell) => categoryHeaderPattern.test(rowText(cell)))
+      );
+      const headerIndex = strictHeaderIndex >= 0 ? strictHeaderIndex : selected.rows.slice(0, 40).findIndex((row) => row.some((cell) => amountHeaderPattern.test(rowText(cell))));
       const header = headerIndex >= 0 ? selected.rows[headerIndex] : [];
-      const amountColumn = header.findIndex((cell) => /importe|precio|coste|inversi[oó]n|presupuesto/i.test(rowText(cell)));
-      const areaColumn = header.findIndex((cell) => /[áa]rea|partida|concepto|servicio|cap[ií]tulo|categor[ií]a/i.test(rowText(cell)));
+      const amountColumn = header.findIndex((cell) => amountHeaderPattern.test(rowText(cell)));
+      const areaColumn = header.findIndex((cell) => /[áa]rea|categor[ií]a|secci[oó]n|grupo|familia|cap[ií]tulo|partida|concepto|servicio|descripci[oó]n|detalle/i.test(rowText(cell)));
       const descriptionColumn = header.findIndex((cell) => /descripci[oó]n|detalle|alcance/i.test(rowText(cell)));
       const dataRows = selected.rows.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
       const parsed: Item[] = [];
       let detectedContingencyPercent: number | null = null;
       let detectedContingencyAmount: number | null = null;
       let detectedVat: number | null = null;
+      let detectedBaseAmount: number | null = null;
+      let detectedGrandTotal: number | null = null;
 
       dataRows.forEach((row, index) => {
         const textCells = row.map(rowText);
         const combined = textCells.filter(Boolean).join(" ");
         if (!combined) return;
         const preferredAmount = amountColumn >= 0 ? spreadsheetNumber(row[amountColumn]) : null;
-        const amount = preferredAmount ?? [...row].reverse().map(spreadsheetNumber).find((value) => value !== null) ?? null;
-        const area = (areaColumn >= 0 ? textCells[areaColumn] : "") || textCells.find((cell) => cell && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
+        const amount = amountColumn >= 0 ? preferredAmount : ([...row].reverse().map(spreadsheetNumber).find((value) => value !== null) ?? null);
+        const area = areaColumn >= 0 ? textCells[areaColumn] : (textCells.find((cell) => cell && !/^-?[\d.,\s€$£]+$/.test(cell)) || "");
         const description = (descriptionColumn >= 0 ? textCells[descriptionColumn] : "") || textCells.find((cell) => cell && cell !== area && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
         const explicitPercent = spreadsheetPercent(combined);
         if (/contingencia|imprevistos?|reserva de riesgo/i.test(combined)) {
@@ -148,6 +155,14 @@ export default function Home() {
         }
         if (/\biva\b|impuesto sobre el valor añadido/i.test(combined)) {
           if (explicitPercent !== null) detectedVat = explicitPercent;
+          return;
+        }
+        if (/base imponible/i.test(combined) && amount !== null) {
+          detectedBaseAmount = amount;
+          return;
+        }
+        if (/total (propuesta|presupuesto|general|final)|importe total/i.test(combined) && amount !== null) {
+          detectedGrandTotal = amount;
           return;
         }
         const isSummary = /^(subtotal|total|base imponible|iva|impuesto|contingencia|beneficio|margen|descuento|ajuste)(\b|\s)/i.test(area);
@@ -160,8 +175,19 @@ export default function Home() {
       });
 
       if (!parsed.length) throw new Error("no-items");
-      const importedSubtotal = parsed.reduce((sum, item) => sum + item.amount, 0);
+      let importedSubtotal = parsed.reduce((sum, item) => sum + item.amount, 0);
       const detectedContingency = detectedContingencyPercent ?? (detectedContingencyAmount !== null && importedSubtotal !== 0 ? (detectedContingencyAmount / importedSubtotal) * 100 : 0);
+      const targetSubtotal = detectedBaseAmount !== null
+        ? (detectedContingencyAmount !== null ? detectedBaseAmount - detectedContingencyAmount : detectedBaseAmount / (1 + Math.max(0, detectedContingency) / 100))
+        : null;
+      const reconciliation = targetSubtotal !== null ? targetSubtotal - importedSubtotal : 0;
+      if (Math.abs(reconciliation) > 0.02) {
+        parsed.push({ id: Date.now() + dataRows.length + 1, area: "Otros conceptos y ajustes", description: "Conciliación automática con la base imponible indicada en el Excel", amount: Number(reconciliation.toFixed(2)) });
+        importedSubtotal += reconciliation;
+      }
+      if (detectedVat === null && detectedBaseAmount && detectedGrandTotal && detectedGrandTotal > detectedBaseAmount) {
+        detectedVat = Number((((detectedGrandTotal / detectedBaseAmount) - 1) * 100).toFixed(2));
+      }
       setItems(parsed);
       setContingency(Number(Math.max(0, detectedContingency).toFixed(4)));
       setShowContingency(true);
@@ -169,6 +195,7 @@ export default function Home() {
       const detectedDetails = [
         detectedContingency > 0 ? `contingencia ${Number(detectedContingency.toFixed(2))} %` : "sin contingencia",
         detectedVat !== null ? `IVA ${detectedVat} %` : null,
+        Math.abs(reconciliation) > 0.02 ? "total conciliado con el Excel" : "total verificado",
       ].filter(Boolean).join(" · ");
       setExcelStatus({ kind: "success", message: `${parsed.length} partidas importadas desde “${selected.name}” · ${detectedDetails}. Los precios y totales ya se han recalculado.` });
     } catch {
