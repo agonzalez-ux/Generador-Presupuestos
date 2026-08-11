@@ -223,6 +223,32 @@ function rowText(value: unknown) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
 }
 
+function headerKey(value: unknown) {
+  return rowText(value).toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-záéíóúñ]+/g, " ").trim();
+}
+
+function canonicalSectionName(value: string) {
+  const clean = value.replace(/^\s*\d+\s*[.)-]\s*/, "").replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  if (/transporte/i.test(clean)) return "Transporte";
+  if (/personal.*t[eé]cnico|equipo.*t[eé]cnico/i.test(clean)) return "Personal técnico";
+  if (/requisitos?.*t[eé]cnico/i.test(clean)) return "Requisitos técnicos";
+  if (/seguros?/i.test(clean)) return "Seguro";
+  if (/animaci[oó]n|interacci[oó]n|coreograf/i.test(clean)) return "Animaciones";
+  if (/alquiler.*robots?/i.test(clean)) return "Alquiler de robots";
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+}
+
+function sectionSummary(area: string, concepts: string[]) {
+  if (area === "Transporte") return "Traslado de los robots, el equipo y el material necesario.";
+  if (area === "Personal técnico") return "Equipo técnico, alojamiento, dietas y cobertura operativa.";
+  if (area === "Requisitos técnicos") return "Conectividad y sistemas auxiliares necesarios para la actividad.";
+  if (area === "Seguro") return "Cobertura de los equipos durante el desarrollo del servicio.";
+  if (area === "Animaciones") return "Configuración de animaciones, coreografías e interacciones.";
+  if (area === "Alquiler de robots") return "Alquiler de robots y equipamiento técnico asociado.";
+  const concise = concepts.slice(0, 3).map((concept) => concept.replace(/\s*\([^)]*\)/g, "").trim()).filter(Boolean);
+  return concise.length ? concise.join(" · ") : "Servicios y recursos incluidos en esta sección.";
+}
+
 function spreadsheetPercent(text: string): number | null {
   const match = text.match(/(-?\d+(?:[.,]\d+)?)\s*%/);
   if (!match) return null;
@@ -302,25 +328,32 @@ export default function Home() {
       const sheets = workbook.SheetNames.map((name) => ({
         name,
         rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1, defval: "", raw: false, blankrows: false }),
-      })).sort((a, b) => b.rows.filter((row) => row.some((cell) => String(cell).trim())).length - a.rows.filter((row) => row.some((cell) => String(cell).trim())).length);
-      const selected = sheets[0];
+      }));
+      const amountHeaders = new Set(["importe", "importe total", "precio total", "coste total", "total", "total partida", "pvp"]);
+      const categoryHeaderPattern = /[áa]rea|categor[ií]a|secci[oó]n|grupo|familia|cap[ií]tulo|partida|concepto|servicio|descripci[oó]n|detalle/i;
+      const candidates = sheets.map((sheet) => ({
+        ...sheet,
+        headerIndex: sheet.rows.slice(0, 40).findIndex((row) => row.some((cell) => amountHeaders.has(headerKey(cell))) && row.some((cell) => categoryHeaderPattern.test(rowText(cell)))),
+        score: sheet.rows.filter((row) => row.some((cell) => /^\s*\d+\s*[.)-]\s*[A-ZÁÉÍÓÚÑ]/.test(rowText(cell)))).length,
+      })).filter((sheet) => sheet.headerIndex >= 0).sort((a, b) => b.score - a.score);
+      const selected = candidates[0] || sheets[0];
       if (!selected?.rows.length) throw new Error("empty");
 
-      const amountHeaderPattern = /^(importe|importe total|precio total|coste total|total partida|pvp)$/i;
-      const categoryHeaderPattern = /[áa]rea|categor[ií]a|secci[oó]n|grupo|familia|cap[ií]tulo|partida|concepto|servicio|descripci[oó]n|detalle/i;
-      const strictHeaderIndex = selected.rows.slice(0, 40).findIndex((row) =>
-        row.some((cell) => amountHeaderPattern.test(rowText(cell))) && row.some((cell) => categoryHeaderPattern.test(rowText(cell)))
-      );
-      const headerIndex = strictHeaderIndex >= 0 ? strictHeaderIndex : selected.rows.slice(0, 40).findIndex((row) => row.some((cell) => amountHeaderPattern.test(rowText(cell))));
+      const headerIndex = "headerIndex" in selected && selected.headerIndex >= 0
+        ? selected.headerIndex
+        : selected.rows.slice(0, 40).findIndex((row) => row.some((cell) => amountHeaders.has(headerKey(cell))));
       const header = headerIndex >= 0 ? selected.rows[headerIndex] : [];
-      const amountColumn = header.findIndex((cell) => amountHeaderPattern.test(rowText(cell)));
+      const amountColumn = header.findIndex((cell) => amountHeaders.has(headerKey(cell)));
       const areaColumn = header.findIndex((cell) => /[áa]rea|categor[ií]a|secci[oó]n|grupo|familia|cap[ií]tulo|partida|concepto|servicio|descripci[oó]n|detalle/i.test(rowText(cell)));
       const descriptionColumn = header.findIndex((cell) => /descripci[oó]n|detalle|alcance/i.test(rowText(cell)));
       const dataRows = selected.rows.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
       const parsed: Item[] = [];
+      const groupedSections: Array<{ area: string; concepts: string[]; amount: number }> = [];
+      let currentSection: { area: string; concepts: string[]; amount: number } | null = null;
       let detectedContingencyPercent: number | null = null;
       let detectedContingencyAmount: number | null = null;
       let detectedVat: number | null = null;
+      let detectedSubtotalAmount: number | null = null;
       let detectedBaseAmount: number | null = null;
       let detectedGrandTotal: number | null = null;
 
@@ -334,12 +367,21 @@ export default function Home() {
         const description = (descriptionColumn >= 0 ? textCells[descriptionColumn] : "") || textCells.find((cell) => cell && cell !== area && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
         const explicitPercent = spreadsheetPercent(combined);
         if (/contingencia|imprevistos?|reserva de riesgo/i.test(combined)) {
-          if (explicitPercent !== null) detectedContingencyPercent = explicitPercent;
+          const percentCell = [...row].reverse().map((cell) => spreadsheetPercent(rowText(cell))).find((value) => value !== null) ?? null;
+          const decimalRate = [...row.slice(0, Math.max(0, amountColumn))].reverse()
+            .map(spreadsheetNumber)
+            .find((value) => value !== null && value > 0 && value <= 1) ?? null;
+          const labelPercent = /recomendad[oa].*\d+\s*[-–]\s*\d+\s*%/i.test(combined) ? null : explicitPercent;
+          if (decimalRate !== null || percentCell !== null || labelPercent !== null) detectedContingencyPercent = decimalRate !== null ? decimalRate * 100 : (percentCell ?? labelPercent);
           if (preferredAmount !== null) detectedContingencyAmount = preferredAmount;
           return;
         }
         if (/\biva\b|impuesto sobre el valor añadido/i.test(combined)) {
           if (explicitPercent !== null) detectedVat = explicitPercent;
+          return;
+        }
+        if (/^subtotal\b/i.test(combined) && amount !== null) {
+          detectedSubtotalAmount = amount;
           return;
         }
         if (/base imponible/i.test(combined) && amount !== null) {
@@ -350,8 +392,17 @@ export default function Home() {
           detectedGrandTotal = amount;
           return;
         }
+        const sectionLabel = textCells.find((cell) => /^\s*\d+\s*[.)-]\s*[A-ZÁÉÍÓÚÑ]/.test(cell));
+        if (sectionLabel && amount === null) {
+          currentSection = { area: canonicalSectionName(sectionLabel), concepts: [], amount: 0 };
+          groupedSections.push(currentSection);
+          return;
+        }
         const isSummary = /^(subtotal|total|base imponible|iva|impuesto|contingencia|beneficio|margen|descuento|ajuste)(\b|\s)/i.test(area);
-        if (amount !== null && area && !isSummary) {
+        if (amount !== null && area && !isSummary && currentSection) {
+          currentSection.amount += amount;
+          if (area) currentSection.concepts.push(area);
+        } else if (amount !== null && area && !isSummary) {
           parsed.push({ id: Date.now() + index, area, description, amount });
         } else if (amount === null && combined && parsed.length && !/total|base imponible|iva/i.test(combined)) {
           const previous = parsed[parsed.length - 1];
@@ -359,12 +410,20 @@ export default function Home() {
         }
       });
 
+      if (groupedSections.length >= 2) {
+        parsed.splice(0, parsed.length, ...groupedSections.filter((section) => Math.abs(section.amount) > 0.001).map((section, index) => ({
+          id: Date.now() + index,
+          area: section.area,
+          description: sectionSummary(section.area, section.concepts),
+          amount: Number(section.amount.toFixed(2)),
+        })));
+      }
       if (!parsed.length) throw new Error("no-items");
       let importedSubtotal = parsed.reduce((sum, item) => sum + item.amount, 0);
       const detectedContingency = detectedContingencyPercent ?? (detectedContingencyAmount !== null && importedSubtotal !== 0 ? (detectedContingencyAmount / importedSubtotal) * 100 : 0);
-      const targetSubtotal = detectedBaseAmount !== null
+      const targetSubtotal = detectedSubtotalAmount ?? (detectedBaseAmount !== null
         ? (detectedContingencyAmount !== null ? detectedBaseAmount - detectedContingencyAmount : detectedBaseAmount / (1 + Math.max(0, detectedContingency) / 100))
-        : null;
+        : null);
       const reconciliation = targetSubtotal !== null ? targetSubtotal - importedSubtotal : 0;
       if (Math.abs(reconciliation) > 0.02) {
         parsed.push({ id: Date.now() + dataRows.length + 1, area: "Otros conceptos y ajustes", description: "Conciliación automática con la base imponible indicada en el Excel", amount: Number(reconciliation.toFixed(2)) });
@@ -373,6 +432,8 @@ export default function Home() {
       if (detectedVat === null && detectedBaseAmount && detectedGrandTotal && detectedGrandTotal > detectedBaseAmount) {
         detectedVat = Number((((detectedGrandTotal / detectedBaseAmount) - 1) * 100).toFixed(2));
       }
+      const calculatedWithContingency = importedSubtotal * (1 + Math.max(0, detectedContingency) / 100);
+      if (detectedVat === null && detectedGrandTotal !== null && Math.abs(detectedGrandTotal - calculatedWithContingency) < 0.05) detectedVat = 0;
       setItems(parsed);
       setContingency(Number(Math.max(0, detectedContingency).toFixed(4)));
       setShowContingency(true);
@@ -382,7 +443,7 @@ export default function Home() {
         detectedVat !== null ? `IVA ${detectedVat} %` : null,
         Math.abs(reconciliation) > 0.02 ? "total conciliado con el Excel" : "total verificado",
       ].filter(Boolean).join(" · ");
-      setExcelStatus({ kind: "success", message: `${parsed.length} partidas importadas desde “${selected.name}” · ${detectedDetails}. Los precios y totales ya se han recalculado.` });
+      setExcelStatus({ kind: "success", message: `${parsed.length} secciones importadas desde “${selected.name}” · ${detectedDetails}. Se muestran solo los totales generales y el importe coincide con el Excel.` });
     } catch {
       setExcelStatus({ kind: "error", message: "No encontramos filas con concepto e importe. Revisa que el Excel tenga una columna de partidas y otra de importes, o añádelas manualmente." });
     }
