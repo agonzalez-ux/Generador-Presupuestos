@@ -51,7 +51,7 @@ button { cursor:pointer; }
 .ready-card { background:#eef4e9;border:1px solid #d5e2ca;border-radius:10px;padding:18px;display:flex;justify-content:space-between;align-items:center; }.ready-card>div { display:flex;gap:12px;align-items:center; }.ready-icon { width:33px;height:33px;border-radius:50%;background:var(--brand);color:white;display:grid;place-items:center; }.ready-card strong { font-size:13px; }.ready-card p { margin:4px 0 0;color:#6d7a71;font-size:11px; }
 
 .preview-shell { background:#dfe3e4; min-height:100vh; padding:92px 0 50px; }.preview-toolbar { position:fixed;z-index:5;top:0;left:0;right:0;height:70px;background:white;border-bottom:1px solid #d6dcde;display:flex;align-items:center;justify-content:space-between;padding:0 34px;box-shadow:0 4px 14px #12283818; }.preview-toolbar span { color:var(--muted);font-size:12px; }
-.proposal-page { width:210mm; height:297mm; margin:0 auto 28px; background:white; box-shadow:0 8px 25px #19304424; position:relative; padding:20mm 18mm 17mm; color:var(--text); overflow:hidden; }
+.proposal-page { width:210mm; height:297mm; margin:0 auto 28px; background:white; box-shadow:0 8px 25px #19304424; position:relative; padding:20mm 18mm 17mm; color:var(--text); overflow:hidden; display:flex; flex-direction:column; }
 .proposal-header { display:flex;justify-content:space-between;align-items:center;font-size:9px;font-weight:850;letter-spacing:.5px;color:var(--ink); }.proposal-header img { max-width:90px;max-height:32px;object-fit:contain; }.cover-title { text-align:center;margin:24mm 0 18mm; }.cover-title p,.section-kicker { font-size:10px;font-weight:900;letter-spacing:1px;color:var(--brand); }.cover-title h1 { margin:7px 0 0;font-size:35px;line-height:1.07;color:var(--ink); }.cover-title h2 { margin:5px 0;color:var(--brand);font-size:26px; }.lead { font-size:16px;line-height:1.45;color:#637482; }.fact-card,.summary-card,.include-list article { background:#f1f3f3; }.fact-card { padding:14px;display:grid;margin:15px 0 20px; }.fact-card.two { grid-template-columns:1fr 1fr; }.proposal-page label,.scope>label { display:block;font-size:9px;color:#647682;font-weight:850;margin-bottom:7px; }.fact-card strong { font-size:14px; }.summary-card { padding:14px;margin-bottom:18px; }.summary-card label,.scope>label { color:var(--brand); }.summary-card p,.scope p { margin:0;font-size:12px;line-height:1.5; }.facts { display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #cbd4d8;border-bottom:1px solid #cbd4d8;padding:12px 0;margin:14px 0 17px;text-align:center; }.facts label { margin-bottom:7px; }.facts strong { font-size:12px; }.scope em,.closing-copy { display:block;color:#667985;font-size:10px;line-height:1.5;margin-top:15px; }.proposal-footer { position:absolute;bottom:12mm;left:18mm;right:18mm;display:flex;justify-content:space-between;color:#73838d;font-size:9px; }
 .experience-page h2,.investment-page h2 { font-size:25px;line-height:1.2;margin:10px 0;color:var(--ink); }.experience-copy { font-size:13px;line-height:1.58;margin:0 0 18px; }.experience-page h3,.investment-page h3 { font-size:20px;margin:25px 0 14px;color:var(--ink); }.include-list { display:grid;gap:10px; }.include-list article { padding:12px; }.include-list strong { font-size:12px;color:var(--ink); }.include-list p { margin:5px 0 0;color:#647684;font-size:10px;line-height:1.45; }
 .investment-page h2 { margin-bottom:12px; }.budget-head,.budget-row { display:grid;grid-template-columns:1fr 135px; }.budget-head { background:var(--ink);color:white;padding:10px;font-size:9px;font-weight:900; }.budget-head span:last-child { text-align:right; }.budget-row { padding:10px;border-bottom:1px solid #cfd7db;align-items:start; }.budget-row:nth-child(odd) { background:#f2f4f4; }.budget-row>div { display:flex;flex-direction:column;gap:5px; }.budget-row strong { font-size:11px; }.budget-row>div>strong { color:var(--ink); }.budget-row>strong { text-align:right;color:var(--text); }.budget-row small { color:#677986;font-size:9px; }.totals { margin-top:18px;background:#f1f3f3; }.totals>div { padding:9px;display:flex;justify-content:space-between;font-size:11px; }.totals .grand-total { background:var(--ink);color:white;align-items:end;padding:15px 10px;font-size:14px; }.totals .grand-total strong { font-size:22px; }.investment-page h3 { font-size:15px;margin:18px 0 8px;color:var(--ink); }.notes { margin:0;padding-left:18px;font-size:10px;line-height:1.5; }.final-line { color:var(--brand);font-weight:800;font-size:11px;margin-top:17px; }
@@ -60,4 +60,59 @@ button { cursor:pointer; }
 
 @media (max-width:850px) { .app-shell { display:block; }.sidebar { position:static;width:100%;height:auto;padding:18px; }.sidebar nav { grid-template-columns:repeat(5,1fr);margin-top:14px; }.sidebar nav button { justify-content:center;padding:5px; }.sidebar nav button span,.progress-copy,.sidebar-card { display:none; }.brand { border:0;padding:0; }.workspace { width:100%; }.topbar { height:88px;padding:20px; }.form-card,.form-actions { width:calc(100% - 28px); }.form-card { padding:28px 20px; }.form-grid.two,.palette-card,.sheet-picker { grid-template-columns:1fr; }.proposal-page { transform-origin:top center;transform:scale(.72);margin-bottom:-78mm; }.preview-shell { overflow-x:hidden; } }
 @media (max-width:600px) { .proposal-page { transform:scale(.48);margin-bottom:-153mm; }.upload-zone,.review-hero { grid-template-columns:1fr;display:grid; }.editor-head,.editor-row { grid-template-columns:1fr 110px 24px; }.ready-card { align-items:flex-start;gap:15px;flex-direction:column; }.topbar h1 { font-size:20px; } }
-@media print { @page { size:A4;margin:0; }.no-print { display:none!important; }.preview-shell { padding:0;background:white; }.proposal-page { width:210mm;height:297mm;margin:0;box-shadow:none;break-after:page;page-break-after:always; } }
+@media print {
+  @page { size:A4; margin:0; }
+  html,body { width:210mm; margin:0!important; background:white!important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .no-print { display:none!important; }
+  .preview-shell { padding:0!important; margin:0!important; background:white; }
+  .proposal-page {
+    width:210mm;
+    min-height:297mm;
+    height:297mm;
+    margin:0;
+    padding:14mm 14mm 11mm;
+    box-shadow:none;
+    break-after:page;
+    page-break-after:always;
+    break-inside:avoid;
+    page-break-inside:avoid;
+    overflow:hidden;
+  }
+  .proposal-page:last-of-type { break-after:auto; page-break-after:auto; }
+  .proposal-header img { max-width:82px; max-height:28px; }
+  .cover-title { margin:18mm 0 14mm; }
+  .cover-title h1 { font-size:31px; }
+  .cover-title h2 { font-size:23px; }
+  .lead { font-size:14px; line-height:1.38; }
+  .fact-card { margin:12px 0 16px; padding:12px; }
+  .summary-card { margin-bottom:14px; padding:12px; }
+  .facts { margin:12px 0 14px; padding:10px 0; }
+  .experience-page h2,.investment-page h2 { font-size:22px; margin:8px 0 10px; }
+  .experience-copy { font-size:12px; line-height:1.48; margin:0 0 14px; }
+  .experience-page h3,.investment-page h3 { font-size:16px; margin:18px 0 10px; }
+  .include-list { gap:8px; }
+  .include-list article { padding:10px; break-inside:avoid; page-break-inside:avoid; }
+  .include-list p { font-size:9px; line-height:1.38; }
+  .budget-table,.totals,.notes { break-inside:avoid; page-break-inside:avoid; }
+  .budget-head { padding:8px 9px; font-size:8px; }
+  .budget-row { padding:7px 9px; }
+  .budget-row strong { font-size:10px; }
+  .budget-row small { font-size:8px; line-height:1.32; }
+  .totals { margin-top:12px; }
+  .totals>div { padding:7px 9px; font-size:10px; }
+  .totals .grand-total { padding:11px 9px; font-size:12px; }
+  .totals .grand-total strong { font-size:18px; }
+  .investment-page h3 { margin-top:14px; }
+  .notes { padding-left:15px; font-size:9px; line-height:1.34; }
+  .notes li + li { margin-top:4px; }
+  .final-line { margin-top:12px; font-size:10px; }
+  .proposal-footer {
+    position:static;
+    left:auto;
+    right:auto;
+    bottom:auto;
+    margin-top:auto;
+    padding-top:7mm;
+    font-size:8px;
+  }
+}
