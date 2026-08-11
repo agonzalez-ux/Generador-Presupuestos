@@ -7,9 +7,9 @@ type Include = { id: number; title: string; description: string };
 
 const admiraGreen = "#689F3A";
 const defaultItems: Item[] = [
-  { id: 1, area: "Producción y coordinación", description: "Planificación, gestión y seguimiento integral", amount: 4200 },
-  { id: 2, area: "Equipo técnico especializado", description: "Preparación, operación y soporte", amount: 7800 },
-  { id: 3, area: "Logística y transporte", description: "Desplazamientos, material y montaje", amount: 1950 },
+  { id: 1, area: "Producción y coordinación", description: "Planificación, gestión y seguimiento integral", amount: 0 },
+  { id: 2, area: "Equipo técnico especializado", description: "Preparación, operación y soporte", amount: 0 },
+  { id: 3, area: "Logística y transporte", description: "Desplazamientos, material y montaje", amount: 0 },
 ];
 const defaultIncludes: Include[] = [
   { id: 1, title: "Concepto y puesta en escena", description: "Definición creativa, adaptación visual y preparación de la experiencia." },
@@ -45,13 +45,13 @@ function rowText(value: unknown) {
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
-  const [client, setClient] = useState("PortAventura");
-  const [project, setProject] = useState("Experiencia que deja huella");
+  const [client, setClient] = useState("");
+  const [project, setProject] = useState("");
   const [subtitle, setSubtitle] = useState("Una propuesta diseñada para convertir una idea en un momento memorable.");
-  const [location, setLocation] = useState("Barcelona");
-  const [dates, setDates] = useState("Próximamente");
-  const [format, setFormat] = useState("Experiencia presencial");
-  const [audience, setAudience] = useState("Invitados y asistentes");
+  const [location, setLocation] = useState("");
+  const [dates, setDates] = useState("");
+  const [format, setFormat] = useState("");
+  const [audience, setAudience] = useState("");
   const [summary, setSummary] = useState("En Admira diseñamos experiencias que combinan estrategia, creatividad y una ejecución impecable. Esta propuesta reúne todos los recursos necesarios para dar forma a una activación relevante, segura y alineada con la marca.");
   const [experience, setExperience] = useState("Proponemos una experiencia integral construida alrededor de los objetivos del proyecto. Nos ocuparemos del concepto, la planificación, la producción y la operación para que cada punto de contacto resulte coherente, cuidado y memorable.");
   const [closing, setClosing] = useState("Una propuesta integral para transformar la idea en una experiencia relevante y bien ejecutada.");
@@ -75,6 +75,12 @@ export default function Home() {
   const contingencyAmount = subtotal * (contingency / 100);
   const base = subtotal + contingencyAmount;
   const total = base * (1 + vat / 100);
+  const clientLabel = client.trim() || "Nombre del cliente";
+  const projectLabel = project.trim() || "Título del proyecto";
+  const locationLabel = location.trim() || "Ubicación por definir";
+  const datesLabel = dates.trim() || "Fechas por definir";
+  const formatLabel = format.trim() || "Formato por definir";
+  const audienceLabel = audience.trim() || "Público por definir";
   const hiddenTargetId = useMemo(() => {
     if (contingencyTarget !== "auto") return Number(contingencyTarget);
     return [...items].sort((a, b) => b.amount - a.amount)[0]?.id;
@@ -169,29 +175,29 @@ export default function Home() {
           <button className="button primary" onClick={() => window.print()}>Descargar PDF</button>
         </div>
         <section className="proposal-page cover-page">
-          <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {client.toUpperCase()}</span></header>
-          <div className="cover-title"><p>PROPUESTA CREATIVA Y ECONÓMICA</p><h1>{project}</h1><h2>{client}</h2></div>
+          <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
+          <div className="cover-title"><p>PROPUESTA CREATIVA Y ECONÓMICA</p><h1>{projectLabel}</h1><h2>{clientLabel}</h2></div>
           <p className="lead">{subtitle}</p>
-          <div className="fact-card two"><div><label>CLIENTE</label><strong>{client}</strong></div><div><label>UBICACIÓN</label><strong>{location}</strong></div></div>
+          <div className="fact-card two"><div><label>CLIENTE</label><strong>{clientLabel}</strong></div><div><label>UBICACIÓN</label><strong>{locationLabel}</strong></div></div>
           <div className="summary-card"><label>RESUMEN EJECUTIVO</label><p>{summary}</p></div>
-          <div className="facts"><div><label>CALENDARIO</label><strong>{dates}</strong></div><div><label>FORMATO</label><strong>{format}</strong></div><div><label>AUDIENCIA</label><strong>{audience}</strong></div></div>
+          <div className="facts"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>AUDIENCIA</label><strong>{audienceLabel}</strong></div></div>
           <div className="scope"><label>ALCANCE PRINCIPAL</label><p>{includes.map((item) => item.title).join(", ")}.</p><em>{closing}</em></div>
-          <ProposalFooter project={project} page={1} />
+          <ProposalFooter project={projectLabel} page={1} />
         </section>
 
         <section className="proposal-page experience-page">
           <header className="section-kicker">LA EXPERIENCIA</header>
           <h2>Una propuesta pensada para hacerlo posible</h2>
           <p className="experience-copy">{experience}</p>
-          <div className="facts three"><div><label>CALENDARIO</label><strong>{dates}</strong></div><div><label>FORMATO</label><strong>{format}</strong></div><div><label>ENFOQUE</label><strong>A medida</strong></div></div>
+          <div className="facts three"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>ENFOQUE</label><strong>A medida</strong></div></div>
           <h3>Qué incluye nuestra propuesta</h3>
           <div className="include-list">{includes.map((item) => <article key={item.id}><strong>{item.title}</strong><p>{item.description}</p></article>)}</div>
           <em className="closing-copy">{closing}</em>
-          <ProposalFooter project={project} page={2} />
+          <ProposalFooter project={projectLabel} page={2} />
         </section>
 
         <section className="proposal-page investment-page">
-          <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {client.toUpperCase()}</span></header>
+          <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
           <p className="section-kicker">INVERSIÓN</p><h2>Presupuesto por áreas de servicio</h2>
           <div className="budget-table"><div className="budget-head"><span>ÁREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={item.id}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
           <div className="totals">
@@ -203,7 +209,7 @@ export default function Home() {
           </div>
           <h3>Consideraciones</h3><ul className="notes">{notes.split("\n").filter(Boolean).map((note) => <li key={note}>{note}</li>)}</ul>
           <p className="final-line">Una propuesta pensada para convertir una idea en un resultado memorable.</p>
-          <ProposalFooter project={project} page={3} />
+          <ProposalFooter project={projectLabel} page={3} />
         </section>
       </main>
     );
@@ -224,9 +230,9 @@ export default function Home() {
         <div className="form-card">
           {step === 0 && <>
             <Intro title="Empecemos por lo esencial" text="Estos datos darán forma a la portada y al contexto general de la propuesta." />
-            <div className="form-grid two"><Field label="Empresa o cliente"><input value={client} onChange={(e) => setClient(e.target.value)} /></Field><Field label="Nombre del proyecto"><input value={project} onChange={(e) => setProject(e.target.value)} /></Field></div>
+            <div className="form-grid two"><Field label="Empresa o cliente"><input placeholder="Ej. Nombre de la empresa" value={client} onChange={(e) => setClient(e.target.value)} /></Field><Field label="Nombre del proyecto"><input placeholder="Ej. Lanzamiento de producto" value={project} onChange={(e) => setProject(e.target.value)} /></Field></div>
             <Field label="Frase de apertura" hint="Una línea breve y atractiva para la portada"><textarea rows={2} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></Field>
-            <div className="form-grid two"><Field label="Ubicación"><input value={location} onChange={(e) => setLocation(e.target.value)} /></Field><Field label="Fechas o calendario"><input value={dates} onChange={(e) => setDates(e.target.value)} /></Field><Field label="Formato"><input value={format} onChange={(e) => setFormat(e.target.value)} /></Field><Field label="Público / audiencia"><input value={audience} onChange={(e) => setAudience(e.target.value)} /></Field></div>
+            <div className="form-grid two"><Field label="Ubicación"><input placeholder="Ej. Madrid" value={location} onChange={(e) => setLocation(e.target.value)} /></Field><Field label="Fechas o calendario"><input placeholder="Ej. 15-17 de octubre" value={dates} onChange={(e) => setDates(e.target.value)} /></Field><Field label="Formato"><input placeholder="Ej. Evento presencial" value={format} onChange={(e) => setFormat(e.target.value)} /></Field><Field label="Público / audiencia"><input placeholder="Ej. Clientes y colaboradores" value={audience} onChange={(e) => setAudience(e.target.value)} /></Field></div>
             <Field label="Quiénes somos y resumen ejecutivo" hint="Aparecerá en la primera página"><textarea rows={5} value={summary} onChange={(e) => setSummary(e.target.value)} /></Field>
           </>}
 
@@ -257,8 +263,8 @@ export default function Home() {
 
           {step === 4 && <>
             <Intro title="Todo listo para presentar" text="Revisa el contenido final y genera una propuesta de tres páginas lista para compartir." />
-            <div className="review-hero"><div className="review-brand"><img src={logo} alt="Logo" /></div><div><span>PROPUESTA PARA {client.toUpperCase()}</span><h2>{project}</h2><p>{subtitle}</p></div></div>
-            <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{client} · {location} · {dates}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {showContingency ? "contingencia visible" : "contingencia integrada"}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
+            <div className="review-hero"><div className="review-brand"><img src={logo} alt="Logo" /></div><div><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span><h2>{projectLabel}</h2><p>{subtitle}</p></div></div>
+            <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{clientLabel} · {locationLabel} · {datesLabel}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {showContingency ? "contingencia visible" : "contingencia integrada"}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
             <Field label="Consideraciones finales" hint="Una consideración por línea"><textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
             <div className="ready-card"><div><span className="ready-icon">✓</span><div><strong>Propuesta preparada</strong><p>El documento mantendrá los colores, el logo y el total que acabas de revisar.</p></div></div><button className="button primary large" onClick={() => setPreview(true)}>Crear presupuesto →</button></div>
           </>}
