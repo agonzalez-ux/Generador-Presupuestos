@@ -566,6 +566,10 @@ export default function Home() {
           backgroundColor: "#ffffff",
           scale: Math.min(window.devicePixelRatio || 2, 2),
           useCORS: true,
+          logging: false,
+          onclone: (clonedDocument) => {
+            clonedDocument.body.classList.add("pdf-export");
+          },
         });
         const image = canvas.toDataURL("image/png");
         if (index > 0) {
