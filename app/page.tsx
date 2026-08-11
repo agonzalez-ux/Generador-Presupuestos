@@ -49,6 +49,30 @@ function spreadsheetPercent(text: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function improveProposalText(value: string) {
+  const fragments = value
+    .replace(/\r/g, "")
+    .split(/\n+|;\s*/)
+    .map((part) => part.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+  let text = fragments.join(". ").replace(/\.{2,}/g, ".");
+  text = text
+    .replace(/^vamos a hacer\s+/i, "La propuesta contempla ")
+    .replace(/^vamos a\s+/i, "La propuesta contempla ")
+    .replace(/^queremos hacer\s+/i, "El objetivo de la propuesta es ")
+    .replace(/^queremos\s+/i, "El objetivo es ")
+    .replace(/^se va a hacer\s+/i, "Se desarrollará ")
+    .replace(/^haremos\s+/i, "La propuesta incluye ")
+    .replace(/^habrá\s+/i, "La experiencia contará con ")
+    .replace(/\by luego\b/gi, ". Posteriormente,")
+    .replace(/\bademás también\b/gi, "Además,")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/([.!?])\s*([a-záéíóúñ])/g, (_, punctuation, letter) => `${punctuation} ${letter.toUpperCase()}`);
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  if (text && !/[.!?]$/.test(text)) text += ".";
+  return text;
+}
+
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
@@ -60,7 +84,8 @@ export default function Home() {
   const [format, setFormat] = useState("");
   const [audience, setAudience] = useState("");
   const [summary, setSummary] = useState("En Admira diseñamos experiencias que combinan estrategia, creatividad y una ejecución impecable. Esta propuesta reúne todos los recursos necesarios para dar forma a una activación relevante, segura y alineada con la marca.");
-  const [experience, setExperience] = useState("Proponemos una experiencia integral construida alrededor de los objetivos del proyecto. Nos ocuparemos del concepto, la planificación, la producción y la operación para que cada punto de contacto resulte coherente, cuidado y memorable.");
+  const [experience, setExperience] = useState("");
+  const [experienceImproved, setExperienceImproved] = useState(false);
   const [closing, setClosing] = useState("Una propuesta integral para transformar la idea en una experiencia relevante y bien ejecutada.");
   const [includes, setIncludes] = useState(defaultIncludes);
   const [items, setItems] = useState(defaultItems);
@@ -222,6 +247,11 @@ export default function Home() {
   const updateInclude = (id: number, field: keyof Include, value: string) => setIncludes(includes.map((item) => item.id === id ? { ...item, [field]: value } : item));
   const addItem = () => setItems([...items, { id: Date.now(), area: "Nueva área", description: "Descripción del servicio", amount: 0 }]);
   const addInclude = () => setIncludes([...includes, { id: Date.now(), title: "Nuevo bloque", description: "Explica qué incluye esta parte de la propuesta." }]);
+  const improveExperience = () => {
+    if (experience.trim().length < 10) return;
+    setExperience(improveProposalText(experience));
+    setExperienceImproved(true);
+  };
 
   if (preview) {
     return (
@@ -302,7 +332,11 @@ export default function Home() {
 
           {step === 2 && <>
             <Intro title="Cuenta exactamente qué vamos a hacer" text="Esta información construirá la segunda página de la propuesta." />
-            <Field label="Descripción de la experiencia" hint="Explica la idea, el enfoque y el resultado esperado"><textarea rows={6} value={experience} onChange={(e) => setExperience(e.target.value)} /></Field>
+            <Field label="Descripción de la experiencia" hint="Cuéntalo con tus palabras: qué haremos, cómo será y qué resultado se busca">
+              <textarea rows={7} placeholder="Ej. Vamos a preparar una activación para presentar el nuevo producto. Habrá una zona de demostración, personal de apoyo y una dinámica para que los asistentes puedan probarlo…" value={experience} onChange={(e) => { setExperience(e.target.value); setExperienceImproved(false); }} />
+              <div className="writing-tools"><span>Escribe con naturalidad. No se añadirán servicios ni datos que no hayas mencionado.</span><button type="button" className="improve-button" disabled={experience.trim().length < 10} onClick={improveExperience}>✦ Mejorar texto</button></div>
+              {experienceImproved && <small className="improved-note">✓ Texto adaptado al tono de la propuesta. Puedes seguir editándolo.</small>}
+            </Field>
             <div className="section-title"><div><strong>Qué incluye nuestra propuesta</strong><span>Añade los bloques necesarios</span></div><button className="text-button" onClick={addInclude}>+ Añadir bloque</button></div>
             <div className="editable-list">{includes.map((item, index) => <article key={item.id}><span className="drag">{String(index + 1).padStart(2, "0")}</span><div><input value={item.title} onChange={(e) => updateInclude(item.id, "title", e.target.value)} /><textarea rows={2} value={item.description} onChange={(e) => updateInclude(item.id, "description", e.target.value)} /></div><button aria-label="Eliminar bloque" onClick={() => setIncludes(includes.filter((row) => row.id !== item.id))}>×</button></article>)}</div>
             <Field label="Frase de cierre"><textarea rows={2} value={closing} onChange={(e) => setClosing(e.target.value)} /></Field>
