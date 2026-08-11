@@ -127,36 +127,36 @@ function createFreeProposal(brief: string, instruction: string, project: string)
   let description = descriptionParts.join(" ");
   if (wantsElegant && description && !/^La propuesta/i.test(description)) description = `La propuesta se articula en torno a una experiencia cuidada y coherente con el proyecto. ${description}`;
 
+  const sourceText = sentences.join(" ");
   const categories = [
-    { title: "Robot y desarrollo del show", pattern: /robot|show|coreograf|sumisi[oó]n|movimiento/i },
-    { title: "Escaparate y puesta en escena", pattern: /escaparate|tienda|maniqu[ií]|suelo|puesta en escena/i },
-    { title: "Pases y planificación horaria", pattern: /pases?|turno|ma[ñn]ana|tarde|horario|horas/i },
-    { title: "Recarga y transiciones", pattern: /recarga|bater[ií]a|transici[oó]n|entre el primer|entre el \d/i },
-    { title: "Desmontaje y desplazamiento", pattern: /desmont|tren|Atocha|desplaz/i },
-    { title: "Campaña y comunicación", pattern: /campa[ñn]a|marketing|marca|comunic|Desigual/i },
-    { title: "Concepto y experiencia", pattern: /concept|creativ|idea|experiencia|activaci[oó]n|din[aá]mica/i },
-    { title: "Producción y coordinación", pattern: /producci[oó]n|coordin|planific|gesti[oó]n|montaje|desmontaje|ejecuci[oó]n/i },
-    { title: "Espacio y puesta en escena", pattern: /espacio|zona|escenario|decor|ambient|stand/i },
-    { title: "Equipo especializado", pattern: /personal|equipo|promotor|azafat|t[eé]cnic|formador|acompa[ñn]amiento|apoyo/i },
-    { title: "Contenidos y recursos técnicos", pattern: /contenido|audiovisual|pantalla|sonido|ilumin|fotograf|v[ií]deo|digital|tecnolog|proyecci[oó]n/i },
-    { title: "Logística y materiales", pattern: /log[ií]stic|transporte|material|env[ií]o|desplaz|almacen|entrega/i },
-    { title: "Dinámica y participación", pattern: /prueba|demostr|taller|sesi[oó]n|juego|particip|asistent|invitad|interacci[oó]n/i },
-    { title: "Marca y comunicación", pattern: /producto|lanzamiento|mensaje|se[ñn]al[eé]tica|identidad/i },
+    { title: "Robot y secuencia de actuación", pattern: /robot|show|coreograf|sumisi[oó]n|movimiento/i, description: "Definición de la actuación, los movimientos y los estados del robot dentro de una secuencia visual coherente." },
+    { title: "Escaparate y composición visual", pattern: /escaparate|tienda|maniqu[ií]|suelo|puesta en escena/i, description: "Integración del robot en el escaparate y organización de los elementos que construirán la imagen de cada momento." },
+    { title: "Plan de pases y horarios", pattern: /pases?|turno|ma[ñn]ana|tarde|horario|horas/i, description: "Distribución ordenada de los pases entre mañana y tarde, con tiempos definidos para cada intervención." },
+    { title: "Recarga y transiciones", pattern: /recarga|bater[ií]a|transici[oó]n|entre el primer|entre el \d/i, description: "Planificación de las pausas de recarga y de los cambios de estado necesarios entre una actuación y la siguiente." },
+    { title: "Cierre operativo y desmontaje", pattern: /desmont|tren|Atocha|desplaz/i, description: "Coordinación del último pase, el desmontaje y el desplazamiento final dentro del margen horario disponible." },
+    { title: "Narrativa de campaña", pattern: /campa[ñn]a|marketing|marca|comunic|Desigual/i, description: "Alineación de la actuación y la puesta en escena con el concepto, el mensaje y el lenguaje visual de la campaña." },
+    { title: "Concepto y experiencia", pattern: /concept|creativ|idea|experiencia|activaci[oó]n|din[aá]mica/i, description: "Definición del concepto general y de su traducción en una experiencia clara, reconocible y coherente con el objetivo." },
+    { title: "Producción y coordinación", pattern: /producci[oó]n|coordin|planific|gesti[oó]n|montaje|ejecuci[oó]n/i, description: "Planificación de fases, tiempos y necesidades operativas para coordinar la ejecución de principio a fin." },
+    { title: "Espacio y puesta en escena", pattern: /espacio|zona|escenario|decor|ambient|stand/i, description: "Adaptación de la propuesta al espacio y organización de las zonas, recorridos y elementos escénicos mencionados." },
+    { title: "Equipo especializado", pattern: /personal|equipo|promotor|azafat|t[eé]cnic|formador|acompa[ñn]amiento|apoyo/i, description: "Definición de funciones, momentos de intervención y coordinación del equipo implicado en la experiencia." },
+    { title: "Recursos técnicos y contenidos", pattern: /contenido|audiovisual|pantalla|sonido|ilumin|fotograf|v[ií]deo|digital|tecnolog|proyecci[oó]n/i, description: "Organización e integración de los recursos técnicos y contenidos necesarios para sostener el desarrollo de la propuesta." },
+    { title: "Logística y materiales", pattern: /log[ií]stic|transporte|material|env[ií]o|almacen|entrega/i, description: "Coordinación de materiales, transportes y entregas para asegurar la disponibilidad de cada recurso en el momento previsto." },
+    { title: "Dinámica y participación", pattern: /prueba|demostr|taller|sesi[oó]n|juego|particip|asistent|invitad|interacci[oó]n/i, description: "Estructuración de la dinámica y de los momentos de interacción para facilitar una participación sencilla y fluida." },
+    { title: "Identidad y mensaje", pattern: /producto|lanzamiento|mensaje|se[ñn]al[eé]tica|identidad/i, description: "Aplicación de la identidad y de los mensajes principales en los puntos de contacto definidos para la experiencia." },
   ];
-  const matched = categories.map((category) => {
-    const evidence = sentences.filter((sentence) => category.pattern.test(sentence)).slice(0, 2);
-    return evidence.length ? { title: category.title, description: evidence.join(" ") } : null;
-  }).filter((item): item is Omit<Include, "id"> => Boolean(item));
+  const selectedCategories = categories.filter((category) => category.pattern.test(sourceText)).slice(0, 6);
+  const matched: Omit<Include, "id">[] = selectedCategories.map(({ title, description }) => ({ title, description }));
 
-  const fallbackTitles = ["Objetivo y enfoque", "Desarrollo propuesto", "Alcance de la experiencia", "Ejecución prevista"];
-  for (const sentence of sentences) {
-    if (matched.length >= 3) break;
-    if (matched.some((item) => item.description.includes(sentence))) continue;
-    matched.push({ title: fallbackTitles[matched.length] || `Bloque ${matched.length + 1}`, description: sentence });
+  const fallbackTitles = ["Objetivo y enfoque", "Desarrollo de la experiencia", "Organización operativa", "Resultado previsto"];
+  const uncoveredSentences = sentences.filter((sentence) => !selectedCategories.some((category) => category.pattern.test(sentence)));
+  const distinctSentences = [...uncoveredSentences, ...sentences].filter((sentence, index, list) => list.indexOf(sentence) === index);
+  let fallbackIndex = 0;
+  while (matched.length < 3 && fallbackIndex < distinctSentences.length) {
+    matched.push({ title: fallbackTitles[matched.length] || `Bloque ${matched.length + 1}`, description: distinctSentences[fallbackIndex] });
+    fallbackIndex += 1;
   }
   while (matched.length < 3) {
-    const source = sentences[matched.length % Math.max(sentences.length, 1)] || polishedSentence(brief);
-    matched.push({ title: fallbackTitles[matched.length] || `Bloque ${matched.length + 1}`, description: source });
+    matched.push({ title: fallbackTitles[matched.length], description: "Desarrollo ordenado de esta fase a partir de la información definida en el planteamiento general." });
   }
 
   return {
@@ -384,7 +384,7 @@ export default function Home() {
     setExperience(data.description);
     setIncludes(data.includes.map((item, index) => ({ ...item, id: Date.now() + index })));
     setClosing(data.closing);
-    setAiStatus({ kind: "success", message: "Se han corregido el texto, la descripción y los bloques incluidos. Puedes editarlos antes de crear el presupuesto." });
+    setAiStatus({ kind: "success", message: "El contenido se ha corregido y repartido en bloques distintos, claros y sin repeticiones. Puedes editarlos antes de crear el presupuesto." });
     setAiLoading(false);
   };
 
