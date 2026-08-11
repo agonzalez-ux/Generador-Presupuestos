@@ -20,6 +20,28 @@ const defaultIncludes: Include[] = [
 
 const money = (value: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value || 0);
 
+function spreadsheetNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  let text = value.trim().replace(/\u00a0/g, " ").replace(/[€$£\s]/g, "");
+  if (!text || !/\d/.test(text)) return null;
+  const negative = /^\(.*\)$/.test(text) || text.startsWith("-");
+  text = text.replace(/[()\-+]/g, "").replace(/[^\d.,]/g, "");
+  if (text.includes(",") && text.includes(".")) {
+    text = text.lastIndexOf(",") > text.lastIndexOf(".") ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
+  } else if (text.includes(",")) {
+    text = text.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(text)) {
+    text = text.replace(/\./g, "");
+  }
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? (negative ? -parsed : parsed) : null;
+}
+
+function rowText(value: unknown) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
@@ -46,6 +68,7 @@ export default function Home() {
   const [logo, setLogo] = useState("/admira-logo.png");
   const [logoName, setLogoName] = useState("Logo Admira (predeterminado)");
   const [excelName, setExcelName] = useState("");
+  const [excelStatus, setExcelStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [brandStatus, setBrandStatus] = useState("");
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount || 0), 0), [items]);
@@ -73,22 +96,49 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (!file) return;
     setExcelName(file.name);
+    setExcelStatus(null);
     try {
       const XLSX = await import("xlsx");
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1, defval: "" });
-      const parsed = rows.flatMap((row, index) => {
-        const amount = [...row].reverse().find((cell) => typeof cell === "number") as number | undefined;
-        const area = String(row.find((cell) => typeof cell === "string" && cell.trim()) || "").trim();
-        if (!area || typeof amount !== "number" || /total|iva|base imponible/i.test(area)) return [];
-        const description = String(row.slice(1, -1).find((cell) => typeof cell === "string" && cell.trim()) || "");
-        return [{ id: Date.now() + index, area, description, amount }];
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellFormula: true, cellText: true });
+      const sheets = workbook.SheetNames.map((name) => ({
+        name,
+        rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1, defval: "", raw: false, blankrows: false }),
+      })).sort((a, b) => b.rows.filter((row) => row.some((cell) => String(cell).trim())).length - a.rows.filter((row) => row.some((cell) => String(cell).trim())).length);
+      const selected = sheets[0];
+      if (!selected?.rows.length) throw new Error("empty");
+
+      const headerIndex = selected.rows.slice(0, 30).findIndex((row) => row.some((cell) => /importe|precio|coste|inversi[oó]n|presupuesto/i.test(rowText(cell))));
+      const header = headerIndex >= 0 ? selected.rows[headerIndex] : [];
+      const amountColumn = header.findIndex((cell) => /importe|precio|coste|inversi[oó]n|presupuesto/i.test(rowText(cell)));
+      const areaColumn = header.findIndex((cell) => /[áa]rea|partida|concepto|servicio|cap[ií]tulo|categor[ií]a/i.test(rowText(cell)));
+      const descriptionColumn = header.findIndex((cell) => /descripci[oó]n|detalle|alcance/i.test(rowText(cell)));
+      const dataRows = selected.rows.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
+      const parsed: Item[] = [];
+
+      dataRows.forEach((row, index) => {
+        const textCells = row.map(rowText);
+        const combined = textCells.filter(Boolean).join(" ");
+        if (!combined) return;
+        const preferredAmount = amountColumn >= 0 ? spreadsheetNumber(row[amountColumn]) : null;
+        const amount = preferredAmount ?? [...row].reverse().map(spreadsheetNumber).find((value) => value !== null) ?? null;
+        const area = (areaColumn >= 0 ? textCells[areaColumn] : "") || textCells.find((cell) => cell && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
+        const description = (descriptionColumn >= 0 ? textCells[descriptionColumn] : "") || textCells.find((cell) => cell && cell !== area && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
+        const isSummary = /^(subtotal|total|base imponible|iva|impuesto|contingencia|beneficio|margen|descuento|ajuste)(\b|\s)/i.test(area);
+        if (amount !== null && area && !isSummary) {
+          parsed.push({ id: Date.now() + index, area, description, amount });
+        } else if (amount === null && combined && parsed.length && !/total|base imponible|iva/i.test(combined)) {
+          const previous = parsed[parsed.length - 1];
+          if (combined !== previous.area && combined.length < 240) previous.description = [previous.description, combined].filter(Boolean).join(" · ");
+        }
       });
-      if (parsed.length) setItems(parsed);
+
+      if (!parsed.length) throw new Error("no-items");
+      setItems(parsed);
+      setExcelStatus({ kind: "success", message: `${parsed.length} partidas importadas desde “${selected.name}”. Ya puedes editar nombres, descripciones e importes.` });
     } catch {
-      setExcelName(`${file.name} · no se pudieron detectar partidas; puedes añadirlas manualmente`);
+      setExcelStatus({ kind: "error", message: "No encontramos filas con concepto e importe. Revisa que el Excel tenga una columna de partidas y otra de importes, o añádelas manualmente." });
     }
+    event.target.value = "";
   };
 
   const extractBrand = async () => {
@@ -197,7 +247,8 @@ export default function Home() {
 
           {step === 3 && <>
             <Intro title="Construye la inversión" text="Importa un Excel o introduce las partidas manualmente. El total se recalcula al instante." />
-            <label className="excel-zone"><span className="file-icon">XLS</span><div><strong>Adjuntar presupuesto en Excel</strong><p>{excelName || "Se leerán las áreas, descripciones e importes de la primera hoja"}</p></div><span className="button secondary">Seleccionar archivo</span><input hidden type="file" accept=".xlsx,.xls,.csv" onChange={importBudget} /></label>
+            <label className="excel-zone"><span className="file-icon">XLS</span><div><strong>Adjuntar presupuesto en Excel</strong><p>{excelName || "Detectaremos automáticamente la hoja y las columnas con partidas e importes"}</p></div><span className="button secondary">{excelName ? "Cambiar archivo" : "Seleccionar archivo"}</span><input hidden type="file" accept=".xlsx,.xls,.csv" onChange={importBudget} /></label>
+            {excelStatus && <div className={`import-result ${excelStatus.kind}`}><span>{excelStatus.kind === "success" ? "✓" : "!"}</span><div><strong>{excelStatus.kind === "success" ? "Presupuesto actualizado" : "No se pudo importar"}</strong><p>{excelStatus.message}</p></div>{excelStatus.kind === "success" && <strong>{money(subtotal)}</strong>}</div>}
             <div className="section-title"><div><strong>Partidas del presupuesto</strong><span>{items.length} áreas · {money(subtotal)}</span></div><button className="text-button" onClick={addItem}>+ Añadir partida</button></div>
             <div className="budget-editor"><div className="editor-head"><span>ÁREA / DESCRIPCIÓN</span><span>IMPORTE</span><span /></div>{items.map((item) => <div className="editor-row" key={item.id}><div><input value={item.area} onChange={(e) => updateItem(item.id, "area", e.target.value)} /><input className="description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} /></div><label><input type="number" value={item.amount} onChange={(e) => updateItem(item.id, "amount", Number(e.target.value))} /><span>€</span></label><button onClick={() => setItems(items.filter((row) => row.id !== item.id))}>×</button></div>)}</div>
             <div className="contingency-card"><div className="toggle-line"><div><strong>Mostrar contingencia en la propuesta</strong><span>Si se oculta, se integrará en otra partida sin alterar el total.</span></div><button className={`toggle ${showContingency ? "on" : ""}`} aria-pressed={showContingency} onClick={() => setShowContingency(!showContingency)}><i /></button></div><div className="form-grid two compact"><Field label="Porcentaje de contingencia"><label className="suffix"><input type="number" min="0" value={contingency} onChange={(e) => setContingency(Number(e.target.value))} /><span>%</span></label></Field>{!showContingency && <Field label="Integrar la contingencia en"><select value={contingencyTarget} onChange={(e) => setContingencyTarget(e.target.value)}><option value="auto">Área de mayor importe (automático)</option>{items.map((item) => <option key={item.id} value={item.id}>{item.area}</option>)}</select></Field>}</div>{!showContingency && <p className="privacy-note">La partida elegida aumentará {money(contingencyAmount)}. La tabla no mostrará una línea de contingencia.</p>}</div>
