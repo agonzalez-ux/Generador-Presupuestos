@@ -49,30 +49,6 @@ function spreadsheetPercent(text: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function improveProposalText(value: string) {
-  const fragments = value
-    .replace(/\r/g, "")
-    .split(/\n+|;\s*/)
-    .map((part) => part.trim().replace(/\s+/g, " "))
-    .filter(Boolean);
-  let text = fragments.join(". ").replace(/\.{2,}/g, ".");
-  text = text
-    .replace(/^vamos a hacer\s+/i, "La propuesta contempla ")
-    .replace(/^vamos a\s+/i, "La propuesta contempla ")
-    .replace(/^queremos hacer\s+/i, "El objetivo de la propuesta es ")
-    .replace(/^queremos\s+/i, "El objetivo es ")
-    .replace(/^se va a hacer\s+/i, "Se desarrollará ")
-    .replace(/^haremos\s+/i, "La propuesta incluye ")
-    .replace(/^habrá\s+/i, "La experiencia contará con ")
-    .replace(/\by luego\b/gi, ". Posteriormente,")
-    .replace(/\bademás también\b/gi, "Además,")
-    .replace(/\s+([,.;:])/g, "$1")
-    .replace(/([.!?])\s*([a-záéíóúñ])/g, (_, punctuation, letter) => `${punctuation} ${letter.toUpperCase()}`);
-  text = text.charAt(0).toUpperCase() + text.slice(1);
-  if (text && !/[.!?]$/.test(text)) text += ".";
-  return text;
-}
-
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
@@ -84,8 +60,11 @@ export default function Home() {
   const [format, setFormat] = useState("");
   const [audience, setAudience] = useState("");
   const [summary, setSummary] = useState("En Admira diseñamos experiencias que combinan estrategia, creatividad y una ejecución impecable. Esta propuesta reúne todos los recursos necesarios para dar forma a una activación relevante, segura y alineada con la marca.");
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiInstruction, setAiInstruction] = useState("");
   const [experience, setExperience] = useState("");
-  const [experienceImproved, setExperienceImproved] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [closing, setClosing] = useState("Una propuesta integral para transformar la idea en una experiencia relevante y bien ejecutada.");
   const [includes, setIncludes] = useState(defaultIncludes);
   const [items, setItems] = useState(defaultItems);
@@ -247,10 +226,31 @@ export default function Home() {
   const updateInclude = (id: number, field: keyof Include, value: string) => setIncludes(includes.map((item) => item.id === id ? { ...item, [field]: value } : item));
   const addItem = () => setItems([...items, { id: Date.now(), area: "Nueva área", description: "Descripción del servicio", amount: 0 }]);
   const addInclude = () => setIncludes([...includes, { id: Date.now(), title: "Nuevo bloque", description: "Explica qué incluye esta parte de la propuesta." }]);
-  const improveExperience = () => {
-    if (experience.trim().length < 10) return;
-    setExperience(improveProposalText(experience));
-    setExperienceImproved(true);
+  const applyWithAI = async () => {
+    if (aiBrief.trim().length < 20 || aiLoading) return;
+    setAiLoading(true);
+    setAiStatus(null);
+    try {
+      const response = await fetch("/api/generate-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brief: aiBrief,
+          instruction: aiInstruction,
+          context: { client, project, location, dates, format, audience },
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "No se pudo generar la propuesta.");
+      setExperience(data.description);
+      setIncludes(data.includes.map((item: Omit<Include, "id">, index: number) => ({ ...item, id: Date.now() + index })));
+      if (data.closing) setClosing(data.closing);
+      setAiStatus({ kind: "success", message: "La descripción y los bloques incluidos se han actualizado. Puedes editarlos antes de crear el presupuesto." });
+    } catch (error) {
+      setAiStatus({ kind: "error", message: error instanceof Error ? error.message : "No se pudo generar la propuesta. Inténtalo de nuevo." });
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   if (preview) {
@@ -332,10 +332,19 @@ export default function Home() {
 
           {step === 2 && <>
             <Intro title="Cuenta exactamente qué vamos a hacer" text="Esta información construirá la segunda página de la propuesta." />
-            <Field label="Descripción de la experiencia" hint="Cuéntalo con tus palabras: qué haremos, cómo será y qué resultado se busca">
-              <textarea rows={7} placeholder="Ej. Vamos a preparar una activación para presentar el nuevo producto. Habrá una zona de demostración, personal de apoyo y una dinámica para que los asistentes puedan probarlo…" value={experience} onChange={(e) => { setExperience(e.target.value); setExperienceImproved(false); }} />
-              <div className="writing-tools"><span>Escribe con naturalidad. No se añadirán servicios ni datos que no hayas mencionado.</span><button type="button" className="improve-button" disabled={experience.trim().length < 10} onClick={improveExperience}>✦ Mejorar texto</button></div>
-              {experienceImproved && <small className="improved-note">✓ Texto adaptado al tono de la propuesta. Puedes seguir editándolo.</small>}
+            <div className="ai-composer">
+              <div className="ai-heading"><span>✦</span><div><strong>Redactar con IA</strong><p>Cuéntale todo como lo explicarías a otra persona. La IA lo convertirá en una propuesta profesional.</p></div></div>
+              <Field label="¿Qué vamos a hacer?" hint="Incluye objetivos, dinámica, espacios, equipo, fases y cualquier detalle que no deba faltar">
+                <textarea rows={7} maxLength={6000} placeholder="Ej. Vamos a preparar una activación para presentar el nuevo producto. Habrá una zona de demostración, personal de apoyo y una dinámica para que los asistentes puedan probarlo…" value={aiBrief} onChange={(e) => setAiBrief(e.target.value)} />
+              </Field>
+              <Field label="Orden adicional para la IA" hint="Opcional: indica el tono, la extensión o qué quieres destacar">
+                <input maxLength={500} placeholder="Ej. Hazlo elegante, cercano y muy conciso" value={aiInstruction} onChange={(e) => setAiInstruction(e.target.value)} />
+              </Field>
+              <div className="writing-tools"><span>La IA no debe inventar servicios, cifras, fechas ni compromisos que no hayas mencionado.</span><button type="button" className="improve-button" disabled={aiBrief.trim().length < 20 || aiLoading} onClick={applyWithAI}>{aiLoading ? "Generando…" : "✦ Aplicar con IA"}</button></div>
+              {aiStatus && <div className={`ai-result ${aiStatus.kind}`}><strong>{aiStatus.kind === "success" ? "✓ Propuesta actualizada" : "No se pudo aplicar"}</strong><p>{aiStatus.message}</p></div>}
+            </div>
+            <Field label="Descripción final de la experiencia" hint="La IA la redactará aquí. Después puedes cambiar cualquier palabra">
+              <textarea rows={7} placeholder="La descripción profesional aparecerá aquí…" value={experience} onChange={(e) => setExperience(e.target.value)} />
             </Field>
             <div className="section-title"><div><strong>Qué incluye nuestra propuesta</strong><span>Añade los bloques necesarios</span></div><button className="text-button" onClick={addInclude}>+ Añadir bloque</button></div>
             <div className="editable-list">{includes.map((item, index) => <article key={item.id}><span className="drag">{String(index + 1).padStart(2, "0")}</span><div><input value={item.title} onChange={(e) => updateInclude(item.id, "title", e.target.value)} /><textarea rows={2} value={item.description} onChange={(e) => updateInclude(item.id, "description", e.target.value)} /></div><button aria-label="Eliminar bloque" onClick={() => setIncludes(includes.filter((row) => row.id !== item.id))}>×</button></article>)}</div>
