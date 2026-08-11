@@ -42,6 +42,13 @@ function rowText(value: unknown) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
 }
 
+function spreadsheetPercent(text: string): number | null {
+  const match = text.match(/(-?\d+(?:[.,]\d+)?)\s*%/);
+  if (!match) return null;
+  const parsed = Number(match[1].replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
@@ -81,6 +88,7 @@ export default function Home() {
   const datesLabel = dates.trim() || "Fechas por definir";
   const formatLabel = format.trim() || "Formato por definir";
   const audienceLabel = audience.trim() || "Público por definir";
+  const contingencyLabel = contingency <= 0 ? "sin contingencia" : showContingency ? "contingencia visible" : "contingencia integrada";
   const hiddenTargetId = useMemo(() => {
     if (contingencyTarget !== "auto") return Number(contingencyTarget);
     return [...items].sort((a, b) => b.amount - a.amount)[0]?.id;
@@ -120,6 +128,9 @@ export default function Home() {
       const descriptionColumn = header.findIndex((cell) => /descripci[oó]n|detalle|alcance/i.test(rowText(cell)));
       const dataRows = selected.rows.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
       const parsed: Item[] = [];
+      let detectedContingencyPercent: number | null = null;
+      let detectedContingencyAmount: number | null = null;
+      let detectedVat: number | null = null;
 
       dataRows.forEach((row, index) => {
         const textCells = row.map(rowText);
@@ -129,6 +140,16 @@ export default function Home() {
         const amount = preferredAmount ?? [...row].reverse().map(spreadsheetNumber).find((value) => value !== null) ?? null;
         const area = (areaColumn >= 0 ? textCells[areaColumn] : "") || textCells.find((cell) => cell && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
         const description = (descriptionColumn >= 0 ? textCells[descriptionColumn] : "") || textCells.find((cell) => cell && cell !== area && !/^-?[\d.,\s€$£]+$/.test(cell)) || "";
+        const explicitPercent = spreadsheetPercent(combined);
+        if (/contingencia|imprevistos?|reserva de riesgo/i.test(combined)) {
+          if (explicitPercent !== null) detectedContingencyPercent = explicitPercent;
+          if (preferredAmount !== null) detectedContingencyAmount = preferredAmount;
+          return;
+        }
+        if (/\biva\b|impuesto sobre el valor añadido/i.test(combined)) {
+          if (explicitPercent !== null) detectedVat = explicitPercent;
+          return;
+        }
         const isSummary = /^(subtotal|total|base imponible|iva|impuesto|contingencia|beneficio|margen|descuento|ajuste)(\b|\s)/i.test(area);
         if (amount !== null && area && !isSummary) {
           parsed.push({ id: Date.now() + index, area, description, amount });
@@ -139,8 +160,17 @@ export default function Home() {
       });
 
       if (!parsed.length) throw new Error("no-items");
+      const importedSubtotal = parsed.reduce((sum, item) => sum + item.amount, 0);
+      const detectedContingency = detectedContingencyPercent ?? (detectedContingencyAmount !== null && importedSubtotal !== 0 ? (detectedContingencyAmount / importedSubtotal) * 100 : 0);
       setItems(parsed);
-      setExcelStatus({ kind: "success", message: `${parsed.length} partidas importadas desde “${selected.name}”. Ya puedes editar nombres, descripciones e importes.` });
+      setContingency(Number(Math.max(0, detectedContingency).toFixed(4)));
+      setShowContingency(true);
+      if (detectedVat !== null) setVat(detectedVat);
+      const detectedDetails = [
+        detectedContingency > 0 ? `contingencia ${Number(detectedContingency.toFixed(2))} %` : "sin contingencia",
+        detectedVat !== null ? `IVA ${detectedVat} %` : null,
+      ].filter(Boolean).join(" · ");
+      setExcelStatus({ kind: "success", message: `${parsed.length} partidas importadas desde “${selected.name}” · ${detectedDetails}. Los precios y totales ya se han recalculado.` });
     } catch {
       setExcelStatus({ kind: "error", message: "No encontramos filas con concepto e importe. Revisa que el Excel tenga una columna de partidas y otra de importes, o añádelas manualmente." });
     }
@@ -202,7 +232,7 @@ export default function Home() {
           <div className="budget-table"><div className="budget-head"><span>ÁREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={item.id}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
           <div className="totals">
             <div><span>Subtotal</span><strong>{money(showContingency ? subtotal : base)}</strong></div>
-            {showContingency && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
+            {showContingency && contingency > 0 && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
             <div><span>Base imponible</span><strong>{money(base)}</strong></div>
             <div><span>IVA ({vat} %)</span><strong>{money(base * vat / 100)}</strong></div>
             <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
@@ -264,7 +294,7 @@ export default function Home() {
           {step === 4 && <>
             <Intro title="Todo listo para presentar" text="Revisa el contenido final y genera una propuesta de tres páginas lista para compartir." />
             <div className="review-hero"><div className="review-brand"><img src={logo} alt="Logo" /></div><div><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span><h2>{projectLabel}</h2><p>{subtitle}</p></div></div>
-            <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{clientLabel} · {locationLabel} · {datesLabel}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {showContingency ? "contingencia visible" : "contingencia integrada"}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
+            <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{clientLabel} · {locationLabel} · {datesLabel}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {contingencyLabel}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
             <Field label="Consideraciones finales" hint="Una consideración por línea"><textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
             <div className="ready-card"><div><span className="ready-icon">✓</span><div><strong>Propuesta preparada</strong><p>El documento mantendrá los colores, el logo y el total que acabas de revisar.</p></div></div><button className="button primary large" onClick={() => setPreview(true)}>Crear presupuesto →</button></div>
           </>}
