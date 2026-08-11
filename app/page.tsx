@@ -284,6 +284,7 @@ export default function Home() {
   const [closing, setClosing] = useState("Una propuesta integral para transformar la idea en una experiencia relevante y bien ejecutada.");
   const [includes, setIncludes] = useState(defaultIncludes);
   const [items, setItems] = useState(defaultItems);
+  const [paymentPolicy, setPaymentPolicy] = useState("50 % a la aceptación del presupuesto y 50 % antes del inicio de la ejecución. La puesta en marcha queda condicionada a la recepción del anticipo y, cuando corresponda, a la orden de compra y al alta como proveedor. Cualquier política de pago del cliente incompatible con estas condiciones deberá validarse previamente y podrá requerir una revisión económica.");
   const [notes, setNotes] = useState("La propuesta contempla una fase previa de coordinación y validación antes de la ejecución.\nLos importes se mantendrán vigentes durante 30 días.");
   const [vat, setVat] = useState(21);
   const [showContingency, setShowContingency] = useState(true);
@@ -576,7 +577,7 @@ export default function Home() {
             <div><span>IVA ({vat} %)</span><strong>{money(adjustedBase * vat / 100)}</strong></div>
             <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
           </div>
-          <h3>Consideraciones</h3><ul className="notes">{notes.split("\n").filter(Boolean).map((note) => <li key={note}>{note}</li>)}</ul>
+          <h3>Consideraciones</h3><ul className="notes"><li><strong>Política de pago:</strong> {paymentPolicy}</li>{notes.split("\n").filter(Boolean).map((note) => <li key={note}>{note}</li>)}</ul>
           <p className="final-line">Una propuesta pensada para convertir una idea en un resultado memorable.</p>
           <ProposalFooter project={projectLabel} page={3} />
         </section>
@@ -649,7 +650,8 @@ export default function Home() {
             <Intro title="Todo listo para presentar" text="Revisa el contenido final y genera una propuesta de tres páginas lista para compartir." />
             <div className="review-hero"><div className="review-brand"><img src={logo} alt="Logo" /></div><div><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span><h2>{projectLabel}</h2><p>{subtitle}</p></div></div>
             <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{clientLabel} · {locationLabel} · {datesLabel}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {contingencyLabel}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
-            <Field label="Consideraciones finales" hint="Una consideración por línea"><textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+            <Field label="Política de pago" hint="Aparecerá como la primera consideración y puedes adaptarla si el cliente tiene requisitos específicos"><textarea rows={5} value={paymentPolicy} onChange={(e) => setPaymentPolicy(e.target.value)} /></Field>
+            <Field label="Otras consideraciones" hint="Una consideración por línea"><textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
             <div className="ready-card"><div><span className="ready-icon">✓</span><div><strong>Propuesta preparada</strong><p>El documento mantendrá los colores, el logo y el total que acabas de revisar.</p></div></div><button className="button primary large" onClick={() => setPreview(true)}>Crear presupuesto →</button></div>
           </>}
         </div>
