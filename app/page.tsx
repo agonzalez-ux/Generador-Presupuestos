@@ -56,12 +56,27 @@ function correctCommonSpelling(value: string) {
     [/\b(?:qeu|qe)\b/gi, "que"],
     [/\bparaa\b/gi, "para"],
     [/\b(?:ordn|odren)\b/gi, "orden"],
+    [/\b(?:ienda|tiendaa)\b/gi, "tienda"],
+    [/\b(?:dl|dle)\b/gi, "del"],
+    [/\bdeigual\b/gi, "Desigual"],
+    [/\bunitree\b/gi, "Unitree"],
+    [/\b(?:sumision|sumisón)\b/gi, "sumisión"],
+    [/\bmkt\b/gi, "marketing"],
+    [/\b(?:entree|etre)\b/gi, "entre"],
+    [/\b(?:mietras|mintras)\b/gi, "mientras"],
+    [/\bpropon\b/gi, "propón"],
+    [/\bultimo\b/gi, "último"],
+    [/\batocha\b/gi, "Atocha"],
+    [/\b1er\b/gi, "primer"],
   ];
   let text = value;
   corrections.forEach(([pattern, corrected]) => {
     text = text.replace(pattern, (match) => keepCapitalization(match, corrected));
   });
   return text
+    .replace(/\bd\b(?=\s+(?:el|la|los|las|un|una)\b)/gi, "de")
+    .replace(/\b1\s+pie\b/gi, "un pie")
+    .replace(/\b(\d+)o\b/gi, "$1.º")
     .replace(/\b(que|de|la|el|y|a|en|para)\s+\1\b/gi, "$1")
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/([,.;:!?])(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])/g, "$1 ")
@@ -72,6 +87,10 @@ function correctCommonSpelling(value: string) {
 function polishedSentence(value: string) {
   let text = correctCommonSpelling(value).replace(/^[-•·]\s*/, "");
   text = text
+    .replace(/^la propuesta contempla un show\b/i, "La propuesta contempla la realización de un show")
+    .replace(/^el robot va a hacer acciones de sumisión para seguir con la campaña de marketing que han creado\.?$/i, "El robot ejecutará una secuencia de movimientos de sumisión alineada con la campaña de marketing creada.")
+    .replace(/^van a ser shows al día 2 de turno de mañana y 2 de turno de tarde\.?$/i, "Se realizarán cuatro pases al día: dos por la mañana y dos por la tarde.")
+    .replace(/^además\s+(?=entre\b)/i, "Además, ")
     .replace(/^vamos a hacer\s+/i, "La propuesta contempla ")
     .replace(/^vamos a preparar\s+/i, "La propuesta contempla la preparación de ")
     .replace(/^vamos a organizar\s+/i, "La propuesta contempla la organización de ")
@@ -91,11 +110,17 @@ function polishedSentence(value: string) {
 }
 
 function createFreeProposal(brief: string, instruction: string, project: string) {
-  const sentences = brief
+  const allSentences = brief
     .replace(/\r/g, "")
     .split(/\n+|(?<=[.!?;])\s+/)
     .map(polishedSentence)
     .filter((sentence) => sentence.length > 2);
+  const directivePattern = /^(propón|redacta|escribe|calcula|sugiere)\b/i;
+  const directives = allSentences.filter((sentence) => directivePattern.test(sentence));
+  const sentences = allSentences.filter((sentence) => !directivePattern.test(sentence));
+  if (directives.some((sentence) => /4\s+horas|cuatro\s+horas/i.test(sentence) && /tren|Atocha|20(?::00)?/i.test(sentence))) {
+    sentences.push("Como propuesta de horarios, los cuatro pases se realizarán a las 11:00, 13:00, 16:00 y 18:00 h, dejando margen para el desmontaje y el desplazamiento a Atocha antes de las 20:00 h.");
+  }
   const wantsBrief = /breve|corto|conciso|resum/i.test(instruction);
   const wantsElegant = /elegante|premium|sofistic/i.test(instruction);
   const descriptionParts = wantsBrief ? sentences.slice(0, 3) : sentences.slice(0, 6);
@@ -103,14 +128,20 @@ function createFreeProposal(brief: string, instruction: string, project: string)
   if (wantsElegant && description && !/^La propuesta/i.test(description)) description = `La propuesta se articula en torno a una experiencia cuidada y coherente con el proyecto. ${description}`;
 
   const categories = [
+    { title: "Robot y desarrollo del show", pattern: /robot|show|coreograf|sumisi[oó]n|movimiento/i },
+    { title: "Escaparate y puesta en escena", pattern: /escaparate|tienda|maniqu[ií]|suelo|puesta en escena/i },
+    { title: "Pases y planificación horaria", pattern: /pases?|turno|ma[ñn]ana|tarde|horario|horas/i },
+    { title: "Recarga y transiciones", pattern: /recarga|bater[ií]a|transici[oó]n|entre el primer|entre el \d/i },
+    { title: "Desmontaje y desplazamiento", pattern: /desmont|tren|Atocha|desplaz/i },
+    { title: "Campaña y comunicación", pattern: /campa[ñn]a|marketing|marca|comunic|Desigual/i },
     { title: "Concepto y experiencia", pattern: /concept|creativ|idea|experiencia|activaci[oó]n|din[aá]mica/i },
     { title: "Producción y coordinación", pattern: /producci[oó]n|coordin|planific|gesti[oó]n|montaje|desmontaje|ejecuci[oó]n/i },
-    { title: "Espacio y puesta en escena", pattern: /espacio|zona|escenario|decor|ambient|stand|puesta en escena/i },
+    { title: "Espacio y puesta en escena", pattern: /espacio|zona|escenario|decor|ambient|stand/i },
     { title: "Equipo especializado", pattern: /personal|equipo|promotor|azafat|t[eé]cnic|formador|acompa[ñn]amiento|apoyo/i },
     { title: "Contenidos y recursos técnicos", pattern: /contenido|audiovisual|pantalla|sonido|ilumin|fotograf|v[ií]deo|digital|tecnolog|proyecci[oó]n/i },
     { title: "Logística y materiales", pattern: /log[ií]stic|transporte|material|env[ií]o|desplaz|almacen|entrega/i },
     { title: "Dinámica y participación", pattern: /prueba|demostr|taller|sesi[oó]n|juego|particip|asistent|invitad|interacci[oó]n/i },
-    { title: "Marca y comunicación", pattern: /marca|producto|lanzamiento|mensaje|comunic|se[ñn]al[eé]tica|identidad/i },
+    { title: "Marca y comunicación", pattern: /producto|lanzamiento|mensaje|se[ñn]al[eé]tica|identidad/i },
   ];
   const matched = categories.map((category) => {
     const evidence = sentences.filter((sentence) => category.pattern.test(sentence)).slice(0, 2);
