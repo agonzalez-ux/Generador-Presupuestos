@@ -338,10 +338,10 @@ export default function Home() {
     const details = [
       budget.contingency > 0 ? `contingencia ${Number(budget.contingency.toFixed(2))} %` : "sin contingencia",
       `IVA ${budget.vat} %`,
-      budget.reconciled ? "total conciliado con el Excel" : "total verificado",
+      budget.reconciled ? "partidas conciliadas con el Excel" : "partidas verificadas",
     ].join(" · ");
     const sheetNote = availableSheets > 1 ? ` Se han encontrado ${availableSheets} hojas de presupuesto; puedes elegir otra en el selector.` : "";
-    setExcelStatus({ kind: "success", message: `${budget.items.length} secciones importadas desde “${budget.name}” · ${details}. Se muestran solo los totales generales y el importe coincide con esta hoja.${sheetNote}` });
+    setExcelStatus({ kind: "success", message: `${budget.items.length} secciones importadas desde “${budget.name}” · ${details}. Se muestran solo los totales generales y los importes de las partidas coinciden con esta hoja.${sheetNote}` });
   };
 
   const importBudget = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -467,7 +467,6 @@ export default function Home() {
         detectedVat = Number((((detectedGrandTotal / detectedBaseAmount) - 1) * 100).toFixed(2));
       }
       const calculatedWithContingency = importedSubtotal * (1 + Math.max(0, detectedContingency) / 100);
-      if (detectedVat === null && detectedGrandTotal !== null && Math.abs(detectedGrandTotal - calculatedWithContingency) < 0.05) detectedVat = 0;
       const normalizedContingency = Number(Math.max(0, detectedContingency).toFixed(4));
       const normalizedVat = detectedVat ?? vat;
       const calculatedTotal = calculatedWithContingency * (1 + normalizedVat / 100);
@@ -477,7 +476,7 @@ export default function Home() {
         contingency: normalizedContingency,
         vat: normalizedVat,
         subtotal: Number(importedSubtotal.toFixed(2)),
-        total: Number((detectedGrandTotal ?? calculatedTotal).toFixed(2)),
+        total: Number((detectedVat !== null && detectedGrandTotal !== null ? detectedGrandTotal : calculatedTotal).toFixed(2)),
         reconciled: Math.abs(reconciliation) > 0.02,
       });
       });
