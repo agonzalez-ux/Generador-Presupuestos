@@ -20,6 +20,72 @@ const defaultIncludes: Include[] = [
 
 const money = (value: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value || 0);
 
+function polishedSentence(value: string) {
+  let text = value.trim().replace(/^[-•·]\s*/, "").replace(/\s+/g, " ");
+  text = text
+    .replace(/^vamos a hacer\s+/i, "La propuesta contempla ")
+    .replace(/^vamos a preparar\s+/i, "La propuesta contempla la preparación de ")
+    .replace(/^vamos a organizar\s+/i, "La propuesta contempla la organización de ")
+    .replace(/^vamos a\s+/i, "La propuesta contempla ")
+    .replace(/^queremos conseguir\s+/i, "El objetivo es conseguir ")
+    .replace(/^queremos hacer\s+/i, "El objetivo de la propuesta es ")
+    .replace(/^queremos\s+/i, "El objetivo es ")
+    .replace(/^se va a hacer\s+/i, "Se desarrollará ")
+    .replace(/^haremos\s+/i, "La propuesta incluye ")
+    .replace(/^habrá\s+/i, "La experiencia contará con ")
+    .replace(/^también habrá\s+/i, "Además, la experiencia contará con ")
+    .replace(/\bademás también\b/gi, "Además,")
+    .replace(/\by luego\b/gi, "Posteriormente,")
+    .replace(/\s+([,.;:])/g, "$1");
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  return text && !/[.!?]$/.test(text) ? `${text}.` : text;
+}
+
+function createFreeProposal(brief: string, instruction: string, project: string) {
+  const sentences = brief
+    .replace(/\r/g, "")
+    .split(/\n+|(?<=[.!?;])\s+/)
+    .map(polishedSentence)
+    .filter((sentence) => sentence.length > 2);
+  const wantsBrief = /breve|corto|conciso|resum/i.test(instruction);
+  const wantsElegant = /elegante|premium|sofistic/i.test(instruction);
+  const descriptionParts = wantsBrief ? sentences.slice(0, 3) : sentences.slice(0, 6);
+  let description = descriptionParts.join(" ");
+  if (wantsElegant && description && !/^La propuesta/i.test(description)) description = `La propuesta se articula en torno a una experiencia cuidada y coherente con el proyecto. ${description}`;
+
+  const categories = [
+    { title: "Concepto y experiencia", pattern: /concept|creativ|idea|experiencia|activaci[oó]n|din[aá]mica/i },
+    { title: "Producción y coordinación", pattern: /producci[oó]n|coordin|planific|gesti[oó]n|montaje|desmontaje|ejecuci[oó]n/i },
+    { title: "Espacio y puesta en escena", pattern: /espacio|zona|escenario|decor|ambient|stand|puesta en escena/i },
+    { title: "Equipo especializado", pattern: /personal|equipo|promotor|azafat|t[eé]cnic|formador|acompa[ñn]amiento|apoyo/i },
+    { title: "Contenidos y recursos técnicos", pattern: /contenido|audiovisual|pantalla|sonido|ilumin|fotograf|v[ií]deo|digital|tecnolog|proyecci[oó]n/i },
+    { title: "Logística y materiales", pattern: /log[ií]stic|transporte|material|env[ií]o|desplaz|almacen|entrega/i },
+    { title: "Dinámica y participación", pattern: /prueba|demostr|taller|sesi[oó]n|juego|particip|asistent|invitad|interacci[oó]n/i },
+    { title: "Marca y comunicación", pattern: /marca|producto|lanzamiento|mensaje|comunic|se[ñn]al[eé]tica|identidad/i },
+  ];
+  const matched = categories.map((category) => {
+    const evidence = sentences.filter((sentence) => category.pattern.test(sentence)).slice(0, 2);
+    return evidence.length ? { title: category.title, description: evidence.join(" ") } : null;
+  }).filter((item): item is Omit<Include, "id"> => Boolean(item));
+
+  const fallbackTitles = ["Objetivo y enfoque", "Desarrollo propuesto", "Alcance de la experiencia", "Ejecución prevista"];
+  for (const sentence of sentences) {
+    if (matched.length >= 3) break;
+    if (matched.some((item) => item.description.includes(sentence))) continue;
+    matched.push({ title: fallbackTitles[matched.length] || `Bloque ${matched.length + 1}`, description: sentence });
+  }
+  while (matched.length < 3) {
+    const source = sentences[matched.length % Math.max(sentences.length, 1)] || polishedSentence(brief);
+    matched.push({ title: fallbackTitles[matched.length] || `Bloque ${matched.length + 1}`, description: source });
+  }
+
+  return {
+    description,
+    includes: matched.slice(0, 6),
+    closing: `Una propuesta pensada para hacer realidad ${project.trim() ? project.trim() : "el proyecto"} con un alcance claro y alineado con los objetivos definidos.`,
+  };
+}
+
 function spreadsheetNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return null;
@@ -226,31 +292,16 @@ export default function Home() {
   const updateInclude = (id: number, field: keyof Include, value: string) => setIncludes(includes.map((item) => item.id === id ? { ...item, [field]: value } : item));
   const addItem = () => setItems([...items, { id: Date.now(), area: "Nueva área", description: "Descripción del servicio", amount: 0 }]);
   const addInclude = () => setIncludes([...includes, { id: Date.now(), title: "Nuevo bloque", description: "Explica qué incluye esta parte de la propuesta." }]);
-  const applyWithAI = async () => {
+  const applyWithAI = () => {
     if (aiBrief.trim().length < 20 || aiLoading) return;
     setAiLoading(true);
     setAiStatus(null);
-    try {
-      const response = await fetch("/api/generate-proposal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          brief: aiBrief,
-          instruction: aiInstruction,
-          context: { client, project, location, dates, format, audience },
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "No se pudo generar la propuesta.");
-      setExperience(data.description);
-      setIncludes(data.includes.map((item: Omit<Include, "id">, index: number) => ({ ...item, id: Date.now() + index })));
-      if (data.closing) setClosing(data.closing);
-      setAiStatus({ kind: "success", message: "La descripción y los bloques incluidos se han actualizado. Puedes editarlos antes de crear el presupuesto." });
-    } catch (error) {
-      setAiStatus({ kind: "error", message: error instanceof Error ? error.message : "No se pudo generar la propuesta. Inténtalo de nuevo." });
-    } finally {
-      setAiLoading(false);
-    }
+    const data = createFreeProposal(aiBrief, aiInstruction, project);
+    setExperience(data.description);
+    setIncludes(data.includes.map((item, index) => ({ ...item, id: Date.now() + index })));
+    setClosing(data.closing);
+    setAiStatus({ kind: "success", message: "La descripción y los bloques incluidos se han actualizado gratis. Puedes editarlos antes de crear el presupuesto." });
+    setAiLoading(false);
   };
 
   if (preview) {
@@ -333,17 +384,17 @@ export default function Home() {
           {step === 2 && <>
             <Intro title="Cuenta exactamente qué vamos a hacer" text="Esta información construirá la segunda página de la propuesta." />
             <div className="ai-composer">
-              <div className="ai-heading"><span>✦</span><div><strong>Redactar con IA</strong><p>Cuéntale todo como lo explicarías a otra persona. La IA lo convertirá en una propuesta profesional.</p></div></div>
+              <div className="ai-heading"><span>✦</span><div><strong>Redacción automática gratuita</strong><p>Cuéntalo como lo explicarías a otra persona. El asistente lo ordenará y lo adaptará a la propuesta sin pagos ni créditos.</p></div></div>
               <Field label="¿Qué vamos a hacer?" hint="Incluye objetivos, dinámica, espacios, equipo, fases y cualquier detalle que no deba faltar">
                 <textarea rows={7} maxLength={6000} placeholder="Ej. Vamos a preparar una activación para presentar el nuevo producto. Habrá una zona de demostración, personal de apoyo y una dinámica para que los asistentes puedan probarlo…" value={aiBrief} onChange={(e) => setAiBrief(e.target.value)} />
               </Field>
-              <Field label="Orden adicional para la IA" hint="Opcional: indica el tono, la extensión o qué quieres destacar">
+              <Field label="Indicación adicional" hint="Opcional: pide que sea breve, conciso, elegante o que destaque un aspecto">
                 <input maxLength={500} placeholder="Ej. Hazlo elegante, cercano y muy conciso" value={aiInstruction} onChange={(e) => setAiInstruction(e.target.value)} />
               </Field>
-              <div className="writing-tools"><span>La IA no debe inventar servicios, cifras, fechas ni compromisos que no hayas mencionado.</span><button type="button" className="improve-button" disabled={aiBrief.trim().length < 20 || aiLoading} onClick={applyWithAI}>{aiLoading ? "Generando…" : "✦ Aplicar con IA"}</button></div>
+              <div className="writing-tools"><span>Funciona en tu navegador y no consume ninguna API de pago.</span><button type="button" className="improve-button" disabled={aiBrief.trim().length < 20 || aiLoading} onClick={applyWithAI}>✦ Aplicar gratis</button></div>
               {aiStatus && <div className={`ai-result ${aiStatus.kind}`}><strong>{aiStatus.kind === "success" ? "✓ Propuesta actualizada" : "No se pudo aplicar"}</strong><p>{aiStatus.message}</p></div>}
             </div>
-            <Field label="Descripción final de la experiencia" hint="La IA la redactará aquí. Después puedes cambiar cualquier palabra">
+            <Field label="Descripción final de la experiencia" hint="El asistente la redactará aquí. Después puedes cambiar cualquier palabra">
               <textarea rows={7} placeholder="La descripción profesional aparecerá aquí…" value={experience} onChange={(e) => setExperience(e.target.value)} />
             </Field>
             <div className="section-title"><div><strong>Qué incluye nuestra propuesta</strong><span>Añade los bloques necesarios</span></div><button className="text-button" onClick={addInclude}>+ Añadir bloque</button></div>
