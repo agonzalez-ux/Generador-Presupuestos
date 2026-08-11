@@ -268,7 +268,7 @@ function spreadsheetPercent(text: string): number | null {
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
-  const previewRef = useRef<HTMLElement | null>(null);
+  const exportRef = useRef<HTMLDivElement | null>(null);
   const [client, setClient] = useState("");
   const [project, setProject] = useState("");
   const [subtitle, setSubtitle] = useState("Una propuesta diseñada para convertir una idea en un momento memorable.");
@@ -545,7 +545,7 @@ export default function Home() {
     setPdfStatus(null);
 
     try {
-      const pages = previewRef.current?.querySelectorAll<HTMLElement>(".proposal-page");
+      const pages = exportRef.current?.querySelectorAll<HTMLElement>(".proposal-page");
       if (!pages?.length) {
         throw new Error("missing-preview");
       }
@@ -567,9 +567,6 @@ export default function Home() {
           scale: Math.min(window.devicePixelRatio || 2, 2),
           useCORS: true,
           logging: false,
-          onclone: (clonedDocument) => {
-            clonedDocument.body.classList.add("pdf-export");
-          },
         });
         const image = canvas.toDataURL("image/png");
         if (index > 0) {
@@ -595,7 +592,7 @@ export default function Home() {
 
   if (preview) {
     return (
-      <main ref={previewRef} className="preview-shell" style={{ "--brand": primary, "--ink": secondary } as React.CSSProperties}>
+      <main className="preview-shell" style={{ "--brand": primary, "--ink": secondary } as React.CSSProperties}>
         <div className="preview-toolbar no-print">
           <button className="button ghost" onClick={() => setPreview(false)}>← Volver a editar</button>
           <div><strong>Vista previa</strong><span> · 3 páginas</span></div>
@@ -641,6 +638,43 @@ export default function Home() {
           <p className="final-line">Una propuesta pensada para convertir una idea en un resultado memorable.</p>
           <ProposalFooter project={projectLabel} page={3} />
         </section>
+        <div ref={exportRef} className="pdf-capture-surface pdf-export" aria-hidden="true">
+          <section className="proposal-page cover-page">
+            <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
+            <div className="cover-title"><p>PROPUESTA CREATIVA Y ECONÃ“MICA</p><h1>{projectLabel}</h1><h2>{clientLabel}</h2></div>
+            <p className="lead">{subtitle}</p>
+            <div className="fact-card two"><div><label>CLIENTE</label><strong>{clientLabel}</strong></div><div><label>UBICACIÃ“N</label><strong>{locationLabel}</strong></div></div>
+            <div className="summary-card"><label>RESUMEN EJECUTIVO</label><p>{summary}</p></div>
+            <div className="facts"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>AUDIENCIA</label><strong>{audienceLabel}</strong></div></div>
+            <div className="scope"><label>ALCANCE PRINCIPAL</label><p>{includes.map((item) => item.title).join(", ")}.</p><em>{closing}</em></div>
+            <ProposalFooter project={projectLabel} page={1} />
+          </section>
+          <section className="proposal-page experience-page">
+            <header className="section-kicker">LA EXPERIENCIA</header>
+            <h2>Una propuesta pensada para hacerlo posible</h2>
+            <p className="experience-copy">{experience}</p>
+            <div className="facts three"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>ENFOQUE</label><strong>A medida</strong></div></div>
+            <h3>QuÃ© incluye nuestra propuesta</h3>
+            <div className="include-list">{includes.map((item) => <article key={`pdf-${item.id}`}><strong>{item.title}</strong><p>{item.description}</p></article>)}</div>
+            <em className="closing-copy">{closing}</em>
+            <ProposalFooter project={projectLabel} page={2} />
+          </section>
+          <section className="proposal-page investment-page">
+            <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
+            <p className="section-kicker">INVERSIÃ“N</p><h2>Presupuesto por Ã¡reas de servicio</h2>
+            <div className="budget-table"><div className="budget-head"><span>ÃREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={`pdf-${item.id}`}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
+            <div className="totals">
+              <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal + roundingNet : adjustedBase)}</strong></div>
+              {showContingency && contingency > 0 && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
+              {showContingency && <div><span>Base imponible</span><strong>{money(adjustedBase)}</strong></div>}
+              <div><span>IVA ({vat} %)</span><strong>{money(adjustedBase * vat / 100)}</strong></div>
+              <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
+            </div>
+            <h3>Consideraciones</h3><ul className="notes"><li><strong>PolÃ­tica de pago:</strong> {paymentPolicy}</li>{notes.split("\n").filter(Boolean).map((note) => <li key={`pdf-${note}`}>{note}</li>)}</ul>
+            <p className="final-line">Una propuesta pensada para convertir una idea en un resultado memorable.</p>
+            <ProposalFooter project={projectLabel} page={3} />
+          </section>
+        </div>
       </main>
     );
   }
