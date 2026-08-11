@@ -20,8 +20,57 @@ const defaultIncludes: Include[] = [
 
 const money = (value: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value || 0);
 
+function keepCapitalization(original: string, corrected: string) {
+  return /^[A-ZÁÉÍÓÚÑ]/.test(original) ? corrected.charAt(0).toUpperCase() + corrected.slice(1) : corrected;
+}
+
+function correctCommonSpelling(value: string) {
+  const corrections: Array<[RegExp, string]> = [
+    [/\b(?:expeiencia|experiecia|experienciaa|experenca)\b/gi, "experiencia"],
+    [/\b(?:propuests|propuesa|propueta|propuestaa)\b/gi, "propuesta"],
+    [/\b(?:preupuesto|presupesto|pesupuesto|presupuestoo)\b/gi, "presupuesto"],
+    [/\b(?:descripcin|descrpcion|descripccion)\b/gi, "descripción"],
+    [/\b(?:explicacion|esplicación|esplicacion)\b/gi, "explicación"],
+    [/\b(?:organizacion|orgnización|orgnizacion)\b/gi, "organización"],
+    [/\b(?:presentacion|presntación|presntacion)\b/gi, "presentación"],
+    [/\b(?:demostracion|demostracón)\b/gi, "demostración"],
+    [/\b(?:produccion|produción)\b/gi, "producción"],
+    [/\b(?:coordinacion|coordnación)\b/gi, "coordinación"],
+    [/\b(?:comunicacion|comuncación)\b/gi, "comunicación"],
+    [/\b(?:participacion|partcipación)\b/gi, "participación"],
+    [/\b(?:ejecucion|ejecucón)\b/gi, "ejecución"],
+    [/\b(?:ubicacion|ubcación)\b/gi, "ubicación"],
+    [/\b(?:logistica|logísitca)\b/gi, "logística"],
+    [/\b(?:tecnico|tecnco)\b/gi, "técnico"],
+    [/\b(?:publico|públco)\b/gi, "público"],
+    [/\b(?:tambien|tanbien|tambén)\b/gi, "también"],
+    [/\b(?:ademas|admas|además también)\b/gi, "además"],
+    [/\b(?:sera|seráa)\b/gi, "será"],
+    [/\b(?:habra|habráa)\b/gi, "habrá"],
+    [/\b(?:tendra|tendráa)\b/gi, "tendrá"],
+    [/\b(?:dias|días)\b/gi, "días"],
+    [/\b(?:numero|númro)\b/gi, "número"],
+    [/\b(?:crear|cear|creear)\b/gi, "crear"],
+    [/\b(?:excel|exel|excell)\b/gi, "Excel"],
+    [/\b(?:poruqe|porqe|pq)\b/gi, "porque"],
+    [/\b(?:qeu|qe)\b/gi, "que"],
+    [/\bparaa\b/gi, "para"],
+    [/\b(?:ordn|odren)\b/gi, "orden"],
+  ];
+  let text = value;
+  corrections.forEach(([pattern, corrected]) => {
+    text = text.replace(pattern, (match) => keepCapitalization(match, corrected));
+  });
+  return text
+    .replace(/\b(que|de|la|el|y|a|en|para)\s+\1\b/gi, "$1")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,.;:!?])(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])/g, "$1 ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function polishedSentence(value: string) {
-  let text = value.trim().replace(/^[-•·]\s*/, "").replace(/\s+/g, " ");
+  let text = correctCommonSpelling(value).replace(/^[-•·]\s*/, "");
   text = text
     .replace(/^vamos a hacer\s+/i, "La propuesta contempla ")
     .replace(/^vamos a preparar\s+/i, "La propuesta contempla la preparación de ")
@@ -296,11 +345,15 @@ export default function Home() {
     if (aiBrief.trim().length < 20 || aiLoading) return;
     setAiLoading(true);
     setAiStatus(null);
-    const data = createFreeProposal(aiBrief, aiInstruction, project);
+    const correctedBrief = correctCommonSpelling(aiBrief);
+    const correctedInstruction = correctCommonSpelling(aiInstruction);
+    const data = createFreeProposal(correctedBrief, correctedInstruction, project);
+    setAiBrief(correctedBrief);
+    setAiInstruction(correctedInstruction);
     setExperience(data.description);
     setIncludes(data.includes.map((item, index) => ({ ...item, id: Date.now() + index })));
     setClosing(data.closing);
-    setAiStatus({ kind: "success", message: "La descripción y los bloques incluidos se han actualizado gratis. Puedes editarlos antes de crear el presupuesto." });
+    setAiStatus({ kind: "success", message: "Se han corregido el texto, la descripción y los bloques incluidos. Puedes editarlos antes de crear el presupuesto." });
     setAiLoading(false);
   };
 
@@ -384,21 +437,21 @@ export default function Home() {
           {step === 2 && <>
             <Intro title="Cuenta exactamente qué vamos a hacer" text="Esta información construirá la segunda página de la propuesta." />
             <div className="ai-composer">
-              <div className="ai-heading"><span>✦</span><div><strong>Redacción automática gratuita</strong><p>Cuéntalo como lo explicarías a otra persona. El asistente lo ordenará y lo adaptará a la propuesta sin pagos ni créditos.</p></div></div>
+              <div className="ai-heading"><span>✦</span><div><strong>Redacción y corrección gratuitas</strong><p>Cuéntalo como lo explicarías a otra persona. El asistente corregirá faltas frecuentes, añadirá tildes y puntuación, y lo adaptará a la propuesta.</p></div></div>
               <Field label="¿Qué vamos a hacer?" hint="Incluye objetivos, dinámica, espacios, equipo, fases y cualquier detalle que no deba faltar">
-                <textarea rows={7} maxLength={6000} placeholder="Ej. Vamos a preparar una activación para presentar el nuevo producto. Habrá una zona de demostración, personal de apoyo y una dinámica para que los asistentes puedan probarlo…" value={aiBrief} onChange={(e) => setAiBrief(e.target.value)} />
+                <textarea rows={7} maxLength={6000} spellCheck autoCorrect="on" placeholder="Ej. Vamos a preparar una activación para presentar el nuevo producto. Habrá una zona de demostración, personal de apoyo y una dinámica para que los asistentes puedan probarlo…" value={aiBrief} onChange={(e) => setAiBrief(e.target.value)} />
               </Field>
               <Field label="Indicación adicional" hint="Opcional: pide que sea breve, conciso, elegante o que destaque un aspecto">
-                <input maxLength={500} placeholder="Ej. Hazlo elegante, cercano y muy conciso" value={aiInstruction} onChange={(e) => setAiInstruction(e.target.value)} />
+                <input maxLength={500} spellCheck autoCorrect="on" placeholder="Ej. Hazlo elegante, cercano y muy conciso" value={aiInstruction} onChange={(e) => setAiInstruction(e.target.value)} />
               </Field>
               <div className="writing-tools"><span>Funciona en tu navegador y no consume ninguna API de pago.</span><button type="button" className="improve-button" disabled={aiBrief.trim().length < 20 || aiLoading} onClick={applyWithAI}>✦ Aplicar gratis</button></div>
               {aiStatus && <div className={`ai-result ${aiStatus.kind}`}><strong>{aiStatus.kind === "success" ? "✓ Propuesta actualizada" : "No se pudo aplicar"}</strong><p>{aiStatus.message}</p></div>}
             </div>
             <Field label="Descripción final de la experiencia" hint="El asistente la redactará aquí. Después puedes cambiar cualquier palabra">
-              <textarea rows={7} placeholder="La descripción profesional aparecerá aquí…" value={experience} onChange={(e) => setExperience(e.target.value)} />
+              <textarea rows={7} spellCheck autoCorrect="on" placeholder="La descripción profesional aparecerá aquí…" value={experience} onChange={(e) => setExperience(e.target.value)} />
             </Field>
             <div className="section-title"><div><strong>Qué incluye nuestra propuesta</strong><span>Añade los bloques necesarios</span></div><button className="text-button" onClick={addInclude}>+ Añadir bloque</button></div>
-            <div className="editable-list">{includes.map((item, index) => <article key={item.id}><span className="drag">{String(index + 1).padStart(2, "0")}</span><div><input value={item.title} onChange={(e) => updateInclude(item.id, "title", e.target.value)} /><textarea rows={2} value={item.description} onChange={(e) => updateInclude(item.id, "description", e.target.value)} /></div><button aria-label="Eliminar bloque" onClick={() => setIncludes(includes.filter((row) => row.id !== item.id))}>×</button></article>)}</div>
+            <div className="editable-list">{includes.map((item, index) => <article key={item.id}><span className="drag">{String(index + 1).padStart(2, "0")}</span><div><input spellCheck autoCorrect="on" value={item.title} onChange={(e) => updateInclude(item.id, "title", e.target.value)} /><textarea rows={2} spellCheck autoCorrect="on" value={item.description} onChange={(e) => updateInclude(item.id, "description", e.target.value)} /></div><button aria-label="Eliminar bloque" onClick={() => setIncludes(includes.filter((row) => row.id !== item.id))}>×</button></article>)}</div>
             <Field label="Frase de cierre"><textarea rows={2} value={closing} onChange={(e) => setClosing(e.target.value)} /></Field>
           </>}
 
