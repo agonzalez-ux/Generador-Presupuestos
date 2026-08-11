@@ -4,6 +4,15 @@ import { ChangeEvent, useMemo, useState } from "react";
 
 type Item = { id: number; area: string; description: string; amount: number };
 type Include = { id: number; title: string; description: string };
+type ImportedBudget = {
+  name: string;
+  items: Item[];
+  contingency: number;
+  vat: number;
+  subtotal: number;
+  total: number;
+  reconciled: boolean;
+};
 
 const admiraGreen = "#689F3A";
 const defaultItems: Item[] = [
@@ -287,6 +296,8 @@ export default function Home() {
   const [logoName, setLogoName] = useState("Logo Admira (predeterminado)");
   const [excelName, setExcelName] = useState("");
   const [excelStatus, setExcelStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [budgetSheets, setBudgetSheets] = useState<ImportedBudget[]>([]);
+  const [selectedBudgetSheet, setSelectedBudgetSheet] = useState("");
   const [brandStatus, setBrandStatus] = useState("");
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount || 0), 0), [items]);
@@ -317,6 +328,21 @@ export default function Home() {
     setLogoName(file.name);
   };
 
+  const applyImportedBudget = (budget: ImportedBudget, availableSheets: number) => {
+    setItems(budget.items.map((item, index) => ({ ...item, id: Date.now() + index })));
+    setContingency(budget.contingency);
+    setShowContingency(true);
+    setVat(budget.vat);
+    setSelectedBudgetSheet(budget.name);
+    const details = [
+      budget.contingency > 0 ? `contingencia ${Number(budget.contingency.toFixed(2))} %` : "sin contingencia",
+      `IVA ${budget.vat} %`,
+      budget.reconciled ? "total conciliado con el Excel" : "total verificado",
+    ].join(" · ");
+    const sheetNote = availableSheets > 1 ? ` Se han encontrado ${availableSheets} hojas de presupuesto; puedes elegir otra en el selector.` : "";
+    setExcelStatus({ kind: "success", message: `${budget.items.length} secciones importadas desde “${budget.name}” · ${details}. Se muestran solo los totales generales y el importe coincide con esta hoja.${sheetNote}` });
+  };
+
   const importBudget = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -336,7 +362,14 @@ export default function Home() {
         headerIndex: sheet.rows.slice(0, 40).findIndex((row) => row.some((cell) => amountHeaders.has(headerKey(cell))) && row.some((cell) => categoryHeaderPattern.test(rowText(cell)))),
         score: sheet.rows.filter((row) => row.some((cell) => /^\s*\d+\s*[.)-]\s*[A-ZÁÉÍÓÚÑ]/.test(rowText(cell)))).length,
       })).filter((sheet) => sheet.headerIndex >= 0).sort((a, b) => b.score - a.score);
-      const selected = candidates[0] || sheets[0];
+      const fallback = sheets[0] ? {
+        ...sheets[0],
+        headerIndex: sheets[0].rows.slice(0, 40).findIndex((row) => row.some((cell) => amountHeaders.has(headerKey(cell)))),
+        score: 0,
+      } : null;
+      const candidateSheets = candidates.length ? candidates : (fallback ? [fallback] : []);
+      const importedSheets: ImportedBudget[] = [];
+      candidateSheets.forEach((selected) => {
       if (!selected?.rows.length) throw new Error("empty");
 
       const headerIndex = "headerIndex" in selected && selected.headerIndex >= 0
@@ -434,17 +467,25 @@ export default function Home() {
       }
       const calculatedWithContingency = importedSubtotal * (1 + Math.max(0, detectedContingency) / 100);
       if (detectedVat === null && detectedGrandTotal !== null && Math.abs(detectedGrandTotal - calculatedWithContingency) < 0.05) detectedVat = 0;
-      setItems(parsed);
-      setContingency(Number(Math.max(0, detectedContingency).toFixed(4)));
-      setShowContingency(true);
-      if (detectedVat !== null) setVat(detectedVat);
-      const detectedDetails = [
-        detectedContingency > 0 ? `contingencia ${Number(detectedContingency.toFixed(2))} %` : "sin contingencia",
-        detectedVat !== null ? `IVA ${detectedVat} %` : null,
-        Math.abs(reconciliation) > 0.02 ? "total conciliado con el Excel" : "total verificado",
-      ].filter(Boolean).join(" · ");
-      setExcelStatus({ kind: "success", message: `${parsed.length} secciones importadas desde “${selected.name}” · ${detectedDetails}. Se muestran solo los totales generales y el importe coincide con el Excel.` });
+      const normalizedContingency = Number(Math.max(0, detectedContingency).toFixed(4));
+      const normalizedVat = detectedVat ?? vat;
+      const calculatedTotal = calculatedWithContingency * (1 + normalizedVat / 100);
+      importedSheets.push({
+        name: selected.name,
+        items: parsed,
+        contingency: normalizedContingency,
+        vat: normalizedVat,
+        subtotal: Number(importedSubtotal.toFixed(2)),
+        total: Number((detectedGrandTotal ?? calculatedTotal).toFixed(2)),
+        reconciled: Math.abs(reconciliation) > 0.02,
+      });
+      });
+      if (!importedSheets.length) throw new Error("no-items");
+      setBudgetSheets(importedSheets);
+      applyImportedBudget(importedSheets[0], importedSheets.length);
     } catch {
+      setBudgetSheets([]);
+      setSelectedBudgetSheet("");
       setExcelStatus({ kind: "error", message: "No encontramos filas con concepto e importe. Revisa que el Excel tenga una columna de partidas y otra de importes, o añádelas manualmente." });
     }
     event.target.value = "";
@@ -586,6 +627,7 @@ export default function Home() {
             <Intro title="Construye la inversión" text="Importa un Excel o introduce las partidas manualmente. El total se recalcula al instante." />
             <label className="excel-zone"><span className="file-icon">XLS</span><div><strong>Adjuntar presupuesto en Excel</strong><p>{excelName || "Detectaremos automáticamente la hoja y las columnas con partidas e importes"}</p></div><span className="button secondary">{excelName ? "Cambiar archivo" : "Seleccionar archivo"}</span><input hidden type="file" accept=".xlsx,.xls,.csv" onChange={importBudget} /></label>
             {excelStatus && <div className={`import-result ${excelStatus.kind}`}><span>{excelStatus.kind === "success" ? "✓" : "!"}</span><div><strong>{excelStatus.kind === "success" ? "Presupuesto actualizado" : "No se pudo importar"}</strong><p>{excelStatus.message}</p></div>{excelStatus.kind === "success" && <strong>{money(subtotal)}</strong>}</div>}
+            {budgetSheets.length > 1 && <div className="sheet-picker"><div><strong>Hoja del presupuesto</strong><span>El archivo contiene varios presupuestos. Elige el que quieres usar.</span></div><select aria-label="Hoja del presupuesto" value={selectedBudgetSheet} onChange={(event) => { const chosen = budgetSheets.find((sheet) => sheet.name === event.target.value); if (chosen) applyImportedBudget(chosen, budgetSheets.length); }}>{budgetSheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {money(sheet.total)}</option>)}</select></div>}
             <div className="section-title"><div><strong>Partidas del presupuesto</strong><span>{items.length} áreas · {money(subtotal)}</span></div><button className="text-button" onClick={addItem}>+ Añadir partida</button></div>
             <div className="budget-editor"><div className="editor-head"><span>ÁREA / DESCRIPCIÓN</span><span>IMPORTE</span><span /></div>{items.map((item) => <div className="editor-row" key={item.id}><div><input value={item.area} onChange={(e) => updateItem(item.id, "area", e.target.value)} /><input className="description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} /></div><label><input type="number" value={item.amount} onChange={(e) => updateItem(item.id, "amount", Number(e.target.value))} /><span>€</span></label><button onClick={() => setItems(items.filter((row) => row.id !== item.id))}>×</button></div>)}</div>
             <div className="contingency-card"><div className="toggle-line"><div><strong>Mostrar contingencia en la propuesta</strong><span>Si se oculta, se integrará en otra partida sin alterar el total.</span></div><button className={`toggle ${showContingency ? "on" : ""}`} aria-pressed={showContingency} onClick={() => setShowContingency(!showContingency)}><i /></button></div><div className="form-grid two compact"><Field label="Porcentaje de contingencia"><label className="suffix"><input type="number" min="0" value={contingency} onChange={(e) => setContingency(Number(e.target.value))} /><span>%</span></label></Field>{!showContingency && <Field label="Integrar la contingencia en"><select value={contingencyTarget} onChange={(e) => setContingencyTarget(e.target.value)}><option value="auto">Área de mayor importe (automático)</option>{items.map((item) => <option key={item.id} value={item.id}>{item.area}</option>)}</select></Field>}</div>{!showContingency && <p className="privacy-note">La partida elegida aumentará {money(contingencyAmount)}. La tabla no mostrará una línea de contingencia.</p>}</div>
