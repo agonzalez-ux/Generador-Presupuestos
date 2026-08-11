@@ -289,6 +289,7 @@ export default function Home() {
   const [showContingency, setShowContingency] = useState(true);
   const [contingency, setContingency] = useState(8);
   const [contingencyTarget, setContingencyTarget] = useState("auto");
+  const [roundTotal, setRoundTotal] = useState(false);
   const [primary, setPrimary] = useState(admiraGreen);
   const [secondary, setSecondary] = useState("#18324A");
   const [website, setWebsite] = useState("");
@@ -303,7 +304,12 @@ export default function Home() {
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount || 0), 0), [items]);
   const contingencyAmount = subtotal * (contingency / 100);
   const base = subtotal + contingencyAmount;
-  const total = base * (1 + vat / 100);
+  const rawTotal = base * (1 + vat / 100);
+  const roundedTarget = rawTotal > 0 ? Math.ceil((rawTotal - 0.001) / 100) * 100 : 0;
+  const roundingGross = roundTotal ? Math.max(0, roundedTarget - rawTotal) : 0;
+  const roundingNet = roundingGross / (1 + vat / 100);
+  const adjustedBase = base + roundingNet;
+  const total = adjustedBase * (1 + vat / 100);
   const clientLabel = client.trim() || "Nombre del cliente";
   const projectLabel = project.trim() || "Título del proyecto";
   const locationLabel = location.trim() || "Ubicación por definir";
@@ -316,10 +322,14 @@ export default function Home() {
     return [...items].sort((a, b) => b.amount - a.amount)[0]?.id;
   }, [items, contingencyTarget]);
   const hiddenTargetItem = items.find((item) => item.id === hiddenTargetId);
+  const roundingTargetId = useMemo(() => [...items].sort((a, b) => b.amount - a.amount)[0]?.id, [items]);
+  const clientItemsTotal = subtotal + roundingNet + (!showContingency ? contingencyAmount : 0);
 
   const visibleItems = items.map((item) => ({
     ...item,
-    amount: !showContingency && item.id === hiddenTargetId ? item.amount + contingencyAmount : item.amount,
+    amount: item.amount
+      + (!showContingency && item.id === hiddenTargetId ? contingencyAmount : 0)
+      + (item.id === roundingTargetId ? roundingNet : 0),
   }));
 
   const onLogo = (event: ChangeEvent<HTMLInputElement>) => {
@@ -560,10 +570,10 @@ export default function Home() {
           <p className="section-kicker">INVERSIÓN</p><h2>Presupuesto por áreas de servicio</h2>
           <div className="budget-table"><div className="budget-head"><span>ÁREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={item.id}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
           <div className="totals">
-            <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal : base)}</strong></div>
+            <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal + roundingNet : adjustedBase)}</strong></div>
             {showContingency && contingency > 0 && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
-            {showContingency && <div><span>Base imponible</span><strong>{money(base)}</strong></div>}
-            <div><span>IVA ({vat} %)</span><strong>{money(base * vat / 100)}</strong></div>
+            {showContingency && <div><span>Base imponible</span><strong>{money(adjustedBase)}</strong></div>}
+            <div><span>IVA ({vat} %)</span><strong>{money(adjustedBase * vat / 100)}</strong></div>
             <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
           </div>
           <h3>Consideraciones</h3><ul className="notes">{notes.split("\n").filter(Boolean).map((note) => <li key={note}>{note}</li>)}</ul>
@@ -628,10 +638,11 @@ export default function Home() {
             <label className="excel-zone"><span className="file-icon">XLS</span><div><strong>Adjuntar presupuesto en Excel</strong><p>{excelName || "Detectaremos automáticamente la hoja y las columnas con partidas e importes"}</p></div><span className="button secondary">{excelName ? "Cambiar archivo" : "Seleccionar archivo"}</span><input hidden type="file" accept=".xlsx,.xls,.csv" onChange={importBudget} /></label>
             {excelStatus && <div className={`import-result ${excelStatus.kind}`}><span>{excelStatus.kind === "success" ? "✓" : "!"}</span><div><strong>{excelStatus.kind === "success" ? "Presupuesto actualizado" : "No se pudo importar"}</strong><p>{excelStatus.message}</p></div>{excelStatus.kind === "success" && <strong>{money(subtotal)}</strong>}</div>}
             {budgetSheets.length > 1 && <div className="sheet-picker"><div><strong>Hoja del presupuesto</strong><span>El archivo contiene varios presupuestos. Elige el que quieres usar.</span></div><select aria-label="Hoja del presupuesto" value={selectedBudgetSheet} onChange={(event) => { const chosen = budgetSheets.find((sheet) => sheet.name === event.target.value); if (chosen) applyImportedBudget(chosen, budgetSheets.length); }}>{budgetSheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {money(sheet.total)}</option>)}</select></div>}
-            <div className="section-title"><div><strong>Partidas del presupuesto</strong><span>{items.length} áreas · el cliente sumará {money(showContingency ? subtotal : base)}</span></div><button className="text-button" onClick={addItem}>+ Añadir partida</button></div>
-            <div className="budget-editor"><div className="editor-head"><span>ÁREA / DESCRIPCIÓN</span><span>IMPORTE</span><span /></div>{items.map((item) => <div className={`editor-row ${!showContingency && item.id === hiddenTargetId ? "receives-contingency" : ""}`} key={item.id}><div><input value={item.area} onChange={(e) => updateItem(item.id, "area", e.target.value)} /><input className="description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} />{!showContingency && item.id === hiddenTargetId && <small className="integrated-note">En la propuesta: {money(item.amount + contingencyAmount)} · incluye {money(contingencyAmount)} de contingencia</small>}</div><label><input type="number" value={item.amount} onChange={(e) => updateItem(item.id, "amount", Number(e.target.value))} /><span>€</span></label><button onClick={() => setItems(items.filter((row) => row.id !== item.id))}>×</button></div>)}</div>
-            <div className="contingency-card"><div className="toggle-line"><div><strong>Mostrar contingencia en la propuesta</strong><span>Si se oculta, se integrará en otra partida sin alterar el total.</span></div><button className={`toggle ${showContingency ? "on" : ""}`} aria-pressed={showContingency} onClick={() => setShowContingency(!showContingency)}><i /></button></div><div className="form-grid two compact"><Field label="Porcentaje de contingencia"><label className="suffix"><input type="number" min="0" value={contingency} onChange={(e) => setContingency(Number(e.target.value))} /><span>%</span></label></Field>{!showContingency && <Field label="Integrar la contingencia en"><select value={contingencyTarget} onChange={(e) => setContingencyTarget(e.target.value)}><option value="auto">Área de mayor importe (automático)</option>{items.map((item) => <option key={item.id} value={item.id}>{item.area}</option>)}</select></Field>}</div>{!showContingency && hiddenTargetItem && <p className="privacy-note"><strong>{money(contingencyAmount)}</strong> se sumarán a <strong>{hiddenTargetItem.area}</strong>: pasará de {money(hiddenTargetItem.amount)} a <strong>{money(hiddenTargetItem.amount + contingencyAmount)}</strong> en la propuesta. Así, la suma de las partidas será {money(base)}.</p>}</div>
-            <div className="form-grid two"><Field label="IVA"><label className="suffix"><input type="number" value={vat} onChange={(e) => setVat(Number(e.target.value))} /><span>%</span></label></Field><div className="total-card"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong><small>Base imponible {money(base)}</small></div></div>
+            <div className="section-title"><div><strong>Partidas del presupuesto</strong><span>{items.length} áreas · el cliente sumará {money(clientItemsTotal)}</span></div><button className="text-button" onClick={addItem}>+ Añadir partida</button></div>
+            <div className="budget-editor"><div className="editor-head"><span>ÁREA / DESCRIPCIÓN</span><span>IMPORTE</span><span /></div>{items.map((item) => { const hiddenAdd = !showContingency && item.id === hiddenTargetId ? contingencyAmount : 0; const roundAdd = item.id === roundingTargetId ? roundingNet : 0; return <div className={`editor-row ${hiddenAdd > 0 || roundAdd > 0 ? "receives-contingency" : ""}`} key={item.id}><div><input value={item.area} onChange={(e) => updateItem(item.id, "area", e.target.value)} /><input className="description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} />{(hiddenAdd > 0 || roundAdd > 0) && <small className="integrated-note">En la propuesta: {money(item.amount + hiddenAdd + roundAdd)}{hiddenAdd > 0 && <> · {money(hiddenAdd)} de contingencia</>}{roundAdd > 0 && <> · {money(roundAdd)} de redondeo</>}</small>}</div><label><input type="number" value={item.amount} onChange={(e) => updateItem(item.id, "amount", Number(e.target.value))} /><span>€</span></label><button onClick={() => setItems(items.filter((row) => row.id !== item.id))}>×</button></div>; })}</div>
+            <div className="contingency-card"><div className="toggle-line"><div><strong>Mostrar contingencia en la propuesta</strong><span>Si se oculta, se integrará en otra partida sin alterar el total.</span></div><button className={`toggle ${showContingency ? "on" : ""}`} aria-pressed={showContingency} onClick={() => setShowContingency(!showContingency)}><i /></button></div><div className="form-grid two compact"><Field label="Porcentaje de contingencia"><label className="suffix"><input type="number" min="0" value={contingency} onChange={(e) => setContingency(Number(e.target.value))} /><span>%</span></label></Field>{!showContingency && <Field label="Integrar la contingencia en"><select value={contingencyTarget} onChange={(e) => setContingencyTarget(e.target.value)}><option value="auto">Área de mayor importe (automático)</option>{items.map((item) => <option key={item.id} value={item.id}>{item.area}</option>)}</select></Field>}</div>{!showContingency && hiddenTargetItem && <p className="privacy-note"><strong>{money(contingencyAmount)}</strong> se sumarán a <strong>{hiddenTargetItem.area}</strong>. Con todos los ajustes, la suma de las partidas será <strong>{money(adjustedBase)}</strong>.</p>}</div>
+            <div className={`rounding-card ${roundTotal ? "active" : ""}`}><div><strong>Redondear el importe final</strong><span>{roundTotal ? `${money(rawTotal)} se redondea hacia arriba a ${money(total)}. El ajuste neto de ${money(roundingNet)} se integra en la partida de mayor importe.` : `Convierte ${money(rawTotal)} en ${money(roundedTarget)} para obtener un total más limpio.`}</span></div><button type="button" className={`button ${roundTotal ? "primary" : "secondary"}`} disabled={rawTotal <= 0} onClick={() => setRoundTotal(!roundTotal)}>{roundTotal ? "✓ Redondeado" : "Redondear"}</button></div>
+            <div className="form-grid two"><Field label="IVA"><label className="suffix"><input type="number" value={vat} onChange={(e) => setVat(Number(e.target.value))} /><span>%</span></label></Field><div className="total-card"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong><small>Base imponible {money(adjustedBase)}</small></div></div>
           </>}
 
           {step === 4 && <>
