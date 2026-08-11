@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useRef, useState } from "react";
 
 type Item = { id: number; area: string; description: string; amount: number };
 type Include = { id: number; title: string; description: string };
@@ -268,6 +268,7 @@ function spreadsheetPercent(text: string): number | null {
 export default function Home() {
   const [step, setStep] = useState(0);
   const [preview, setPreview] = useState(false);
+  const previewRef = useRef<HTMLElement | null>(null);
   const [client, setClient] = useState("");
   const [project, setProject] = useState("");
   const [subtitle, setSubtitle] = useState("Una propuesta diseñada para convertir una idea en un momento memorable.");
@@ -301,6 +302,8 @@ export default function Home() {
   const [budgetSheets, setBudgetSheets] = useState<ImportedBudget[]>([]);
   const [selectedBudgetSheet, setSelectedBudgetSheet] = useState("");
   const [brandStatus, setBrandStatus] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState<{ kind: "error"; message: string } | null>(null);
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount || 0), 0), [items]);
   const contingencyAmount = subtotal * (contingency / 100);
@@ -536,13 +539,66 @@ export default function Home() {
     setAiLoading(false);
   };
 
+  const downloadPdf = async () => {
+    if (pdfLoading) return;
+    setPdfLoading(true);
+    setPdfStatus(null);
+
+    try {
+      const pages = previewRef.current?.querySelectorAll<HTMLElement>(".proposal-page");
+      if (!pages?.length) {
+        throw new Error("missing-preview");
+      }
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      if ("fonts" in document && document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+      for (const [index, page] of Array.from(pages).entries()) {
+        const canvas = await html2canvas(page, {
+          backgroundColor: "#ffffff",
+          scale: Math.min(window.devicePixelRatio || 2, 2),
+          useCORS: true,
+        });
+        const image = canvas.toDataURL("image/png");
+        if (index > 0) {
+          pdf.addPage("a4", "portrait");
+        }
+        pdf.addImage(image, "PNG", 0, 0, 210, 297, undefined, "FAST");
+      }
+
+      const safeProject = (project.trim() || client.trim() || "presupuesto")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      pdf.save(`${safeProject || "presupuesto"}-admira.pdf`);
+    } catch {
+      setPdfStatus({ kind: "error", message: "No hemos podido generar el PDF desde este navegador. Vuelve a intentarlo en unos segundos." });
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   if (preview) {
     return (
-      <main className="preview-shell" style={{ "--brand": primary, "--ink": secondary } as React.CSSProperties}>
+      <main ref={previewRef} className="preview-shell" style={{ "--brand": primary, "--ink": secondary } as React.CSSProperties}>
         <div className="preview-toolbar no-print">
           <button className="button ghost" onClick={() => setPreview(false)}>← Volver a editar</button>
           <div><strong>Vista previa</strong><span> · 3 páginas</span></div>
-          <button className="button primary" onClick={() => window.print()}>Descargar PDF</button>
+          <div className="preview-actions">
+            <button className="button primary" disabled={pdfLoading} onClick={downloadPdf}>{pdfLoading ? "Generando PDF..." : "Descargar PDF"}</button>
+            {pdfStatus && <small className="preview-status">{pdfStatus.message}</small>}
+          </div>
         </div>
         <section className="proposal-page cover-page">
           <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
