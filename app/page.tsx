@@ -291,6 +291,9 @@ export default function Home() {
   const [showContingency, setShowContingency] = useState(true);
   const [contingency, setContingency] = useState(8);
   const [contingencyTarget, setContingencyTarget] = useState("auto");
+  const [showDiscount, setShowDiscount] = useState(false);
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
+  const [discountValue, setDiscountValue] = useState(0);
   const [roundTotal, setRoundTotal] = useState(false);
   const [primary, setPrimary] = useState(admiraGreen);
   const [secondary, setSecondary] = useState("#18324A");
@@ -307,12 +310,19 @@ export default function Home() {
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + Number(item.amount || 0), 0), [items]);
   const contingencyAmount = subtotal * (contingency / 100);
-  const base = subtotal + contingencyAmount;
-  const rawTotal = base * (1 + vat / 100);
+  const baseBeforeDiscount = subtotal + contingencyAmount;
+  const rawDiscountAmount = showDiscount
+    ? discountMode === "percent"
+      ? baseBeforeDiscount * (discountValue / 100)
+      : discountValue
+    : 0;
+  const discountAmount = Math.min(Math.max(0, rawDiscountAmount), baseBeforeDiscount);
+  const discountedBase = Math.max(0, baseBeforeDiscount - discountAmount);
+  const rawTotal = discountedBase * (1 + vat / 100);
   const roundedTarget = rawTotal > 0 ? Math.ceil((rawTotal - 0.001) / 100) * 100 : 0;
   const roundingGross = roundTotal ? Math.max(0, roundedTarget - rawTotal) : 0;
   const roundingNet = roundingGross / (1 + vat / 100);
-  const adjustedBase = base + roundingNet;
+  const adjustedBase = discountedBase + roundingNet;
   const total = adjustedBase * (1 + vat / 100);
   const clientLabel = client.trim() || "Nombre del cliente";
   const projectLabel = project.trim() || "Título del proyecto";
@@ -321,6 +331,11 @@ export default function Home() {
   const formatLabel = format.trim() || "Formato por definir";
   const audienceLabel = audience.trim() || "Público por definir";
   const contingencyLabel = contingency <= 0 ? "sin contingencia" : showContingency ? "contingencia visible" : "contingencia integrada";
+  const discountLabel = showDiscount && discountAmount > 0
+    ? discountMode === "percent"
+      ? `descuento ${discountValue} %`
+      : `descuento ${money(discountAmount)}`
+    : "sin descuento";
   const hiddenTargetId = useMemo(() => {
     if (contingencyTarget !== "auto") return Number(contingencyTarget);
     return [...items].sort((a, b) => b.amount - a.amount)[0]?.id;
@@ -628,9 +643,10 @@ export default function Home() {
           <p className="section-kicker">INVERSIÓN</p><h2>Presupuesto por áreas de servicio</h2>
           <div className="budget-table"><div className="budget-head"><span>ÁREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={item.id}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
           <div className="totals">
-            <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal + roundingNet : adjustedBase)}</strong></div>
+            <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal + roundingNet : baseBeforeDiscount + roundingNet)}</strong></div>
             {showContingency && contingency > 0 && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
-            {showContingency && <div><span>Base imponible</span><strong>{money(adjustedBase)}</strong></div>}
+            {showDiscount && discountAmount > 0 && <div><span>{discountMode === "percent" ? `Descuento (${discountValue} %)` : "Descuento"}</span><strong>-{money(discountAmount)}</strong></div>}
+            <div><span>Base imponible</span><strong>{money(adjustedBase)}</strong></div>
             <div><span>IVA ({vat} %)</span><strong>{money(adjustedBase * vat / 100)}</strong></div>
             <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
           </div>
@@ -664,9 +680,10 @@ export default function Home() {
             <p className="section-kicker">INVERSIÃ“N</p><h2>Presupuesto por Ã¡reas de servicio</h2>
             <div className="budget-table"><div className="budget-head"><span>ÃREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={`pdf-${item.id}`}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
             <div className="totals">
-              <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal + roundingNet : adjustedBase)}</strong></div>
+              <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(showContingency ? subtotal + roundingNet : baseBeforeDiscount + roundingNet)}</strong></div>
               {showContingency && contingency > 0 && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
-              {showContingency && <div><span>Base imponible</span><strong>{money(adjustedBase)}</strong></div>}
+              {showDiscount && discountAmount > 0 && <div><span>{discountMode === "percent" ? `Descuento (${discountValue} %)` : "Descuento"}</span><strong>-{money(discountAmount)}</strong></div>}
+              <div><span>Base imponible</span><strong>{money(adjustedBase)}</strong></div>
               <div><span>IVA ({vat} %)</span><strong>{money(adjustedBase * vat / 100)}</strong></div>
               <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
             </div>
@@ -735,7 +752,8 @@ export default function Home() {
             {budgetSheets.length > 1 && <div className="sheet-picker"><div><strong>Hoja del presupuesto</strong><span>El archivo contiene varios presupuestos. Elige el que quieres usar.</span></div><select aria-label="Hoja del presupuesto" value={selectedBudgetSheet} onChange={(event) => { const chosen = budgetSheets.find((sheet) => sheet.name === event.target.value); if (chosen) applyImportedBudget(chosen, budgetSheets.length); }}>{budgetSheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {money(sheet.total)}</option>)}</select></div>}
             <div className="section-title"><div><strong>Partidas del presupuesto</strong><span>{items.length} áreas · el cliente sumará {money(clientItemsTotal)}</span></div><button className="text-button" onClick={addItem}>+ Añadir partida</button></div>
             <div className="budget-editor"><div className="editor-head"><span>ÁREA / DESCRIPCIÓN</span><span>IMPORTE</span><span /></div>{items.map((item) => { const hiddenAdd = !showContingency && item.id === hiddenTargetId ? contingencyAmount : 0; const roundAdd = item.id === roundingTargetId ? roundingNet : 0; return <div className={`editor-row ${hiddenAdd > 0 || roundAdd > 0 ? "receives-contingency" : ""}`} key={item.id}><div><input value={item.area} onChange={(e) => updateItem(item.id, "area", e.target.value)} /><input className="description" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} />{(hiddenAdd > 0 || roundAdd > 0) && <small className="integrated-note">En la propuesta: {money(item.amount + hiddenAdd + roundAdd)}{hiddenAdd > 0 && <> · {money(hiddenAdd)} de contingencia</>}{roundAdd > 0 && <> · {money(roundAdd)} de redondeo</>}</small>}</div><label><input type="number" value={item.amount} onChange={(e) => updateItem(item.id, "amount", Number(e.target.value))} /><span>€</span></label><button onClick={() => setItems(items.filter((row) => row.id !== item.id))}>×</button></div>; })}</div>
-            <div className="contingency-card"><div className="toggle-line"><div><strong>Mostrar contingencia en la propuesta</strong><span>Si se oculta, se integrará en otra partida sin alterar el total.</span></div><button className={`toggle ${showContingency ? "on" : ""}`} aria-pressed={showContingency} onClick={() => setShowContingency(!showContingency)}><i /></button></div><div className="form-grid two compact"><Field label="Porcentaje de contingencia"><label className="suffix"><input type="number" min="0" value={contingency} onChange={(e) => setContingency(Number(e.target.value))} /><span>%</span></label></Field>{!showContingency && <Field label="Integrar la contingencia en"><select value={contingencyTarget} onChange={(e) => setContingencyTarget(e.target.value)}><option value="auto">Área de mayor importe (automático)</option>{items.map((item) => <option key={item.id} value={item.id}>{item.area}</option>)}</select></Field>}</div>{!showContingency && hiddenTargetItem && <p className="privacy-note"><strong>{money(contingencyAmount)}</strong> se sumarán a <strong>{hiddenTargetItem.area}</strong>. Con todos los ajustes, la suma de las partidas será <strong>{money(adjustedBase)}</strong>.</p>}</div>
+            <div className="contingency-card"><div className="toggle-line"><div><strong>Mostrar contingencia en la propuesta</strong><span>Si se oculta, se integrará en otra partida sin alterar el total.</span></div><button className={`toggle ${showContingency ? "on" : ""}`} aria-pressed={showContingency} onClick={() => setShowContingency(!showContingency)}><i /></button></div><div className="form-grid two compact"><Field label="Porcentaje de contingencia"><label className="suffix"><input type="number" min="0" value={contingency} onChange={(e) => setContingency(Number(e.target.value))} /><span>%</span></label></Field>{!showContingency && <Field label="Integrar la contingencia en"><select value={contingencyTarget} onChange={(e) => setContingencyTarget(e.target.value)}><option value="auto">Área de mayor importe (automático)</option>{items.map((item) => <option key={item.id} value={item.id}>{item.area}</option>)}</select></Field>}</div>{!showContingency && hiddenTargetItem && <p className="privacy-note"><strong>{money(contingencyAmount)}</strong> se sumarán a <strong>{hiddenTargetItem.area}</strong>. Con todos los ajustes, la suma de las partidas será <strong>{money(baseBeforeDiscount + roundingNet)}</strong>.</p>}</div>
+            <div className="contingency-card"><div className="toggle-line"><div><strong>Añadir descuento a la propuesta</strong><span>Se mostrará como una línea independiente antes del IVA y ajustará el total automáticamente.</span></div><button className={`toggle ${showDiscount ? "on" : ""}`} aria-pressed={showDiscount} onClick={() => setShowDiscount(!showDiscount)}><i /></button></div>{showDiscount && <div className="form-grid two compact"><Field label="Tipo de descuento"><select value={discountMode} onChange={(e) => setDiscountMode(e.target.value as "percent" | "fixed")}><option value="percent">Porcentaje</option><option value="fixed">Importe fijo</option></select></Field><Field label={discountMode === "percent" ? "Porcentaje de descuento" : "Importe de descuento"}><label className="suffix"><input type="number" min="0" value={discountValue} onChange={(e) => setDiscountValue(Number(e.target.value))} /><span>{discountMode === "percent" ? "%" : "€"}</span></label></Field></div>}{showDiscount && discountAmount > 0 && <p className="privacy-note"><strong>{money(discountAmount)}</strong> se descontarán antes del IVA. La base imponible quedará en <strong>{money(adjustedBase)}</strong>.</p>}</div>
             <div className={`rounding-card ${roundTotal ? "active" : ""}`}><div><strong>Redondear el importe final</strong><span>{roundTotal ? `${money(rawTotal)} se redondea hacia arriba a ${money(total)}. El ajuste neto de ${money(roundingNet)} se integra en la partida de mayor importe.` : `Convierte ${money(rawTotal)} en ${money(roundedTarget)} para obtener un total más limpio.`}</span></div><button type="button" className={`button ${roundTotal ? "primary" : "secondary"}`} disabled={rawTotal <= 0} onClick={() => setRoundTotal(!roundTotal)}>{roundTotal ? "✓ Redondeado" : "Redondear"}</button></div>
             <div className="form-grid two"><Field label="IVA"><label className="suffix"><input type="number" value={vat} onChange={(e) => setVat(Number(e.target.value))} /><span>%</span></label></Field><div className="total-card"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong><small>Base imponible {money(adjustedBase)}</small></div></div>
           </>}
@@ -743,7 +761,7 @@ export default function Home() {
           {step === 4 && <>
             <Intro title="Todo listo para presentar" text="Revisa el contenido final y genera una propuesta de tres páginas lista para compartir." />
             <div className="review-hero"><div className="review-brand"><img src={logo} alt="Logo" /></div><div><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span><h2>{projectLabel}</h2><p>{subtitle}</p></div></div>
-            <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{clientLabel} · {locationLabel} · {datesLabel}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {contingencyLabel}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
+            <div className="review-grid"><article><span>01</span><div><strong>Portada y resumen</strong><p>{clientLabel} · {locationLabel} · {datesLabel}</p></div><button onClick={() => setStep(0)}>Editar</button></article><article><span>02</span><div><strong>Experiencia y alcance</strong><p>{includes.length} bloques incluidos</p></div><button onClick={() => setStep(2)}>Editar</button></article><article><span>03</span><div><strong>Inversión</strong><p>{items.length} partidas · {contingencyLabel} · {discountLabel}</p></div><button onClick={() => setStep(3)}>Editar</button></article></div>
             <Field label="Política de pago" hint="Aparecerá como la primera consideración y puedes adaptarla si el cliente tiene requisitos específicos"><textarea rows={5} value={paymentPolicy} onChange={(e) => setPaymentPolicy(e.target.value)} /></Field>
             <Field label="Otras consideraciones" hint="Una consideración por línea"><textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
             <div className="ready-card"><div><span className="ready-icon">✓</span><div><strong>Propuesta preparada</strong><p>El documento mantendrá los colores, el logo y el total que acabas de revisar.</p></div></div><button className="button primary large" onClick={() => setPreview(true)}>Crear presupuesto →</button></div>
