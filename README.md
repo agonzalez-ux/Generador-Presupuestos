@@ -1,100 +1,106 @@
-# vinext-starter
+# Generador de Presupuestos Admira
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Herramienta web para crear propuestas comerciales de forma visual, rápida y personalizable.
 
-## Prerequisites
+La plataforma permite construir una propuesta en varias páginas, adaptar textos, cargar identidad de marca, importar un Excel real de presupuesto y generar un PDF listo para compartir con cliente.
 
-- Node.js `>=22.13.0`
+## Enlace público
 
-## Quick Start
+Usar aquí: [admira-presupuestos.admira-1619.chatgpt.site](https://admira-presupuestos.admira-1619.chatgpt.site/)
+
+## Qué hace
+
+- Crea una propuesta comercial en 3 bloques:
+  - portada
+  - desarrollo de la propuesta
+  - inversión
+- Usa el logo de Admira por defecto, con opción de cambiarlo
+- Permite definir colores de marca y usarlos solo en títulos y destacados
+- Deja redactar la experiencia con lenguaje natural y convertirla en una versión más clara y comercial
+- Importa un Excel de presupuesto para detectar partidas generales
+- Calcula importes automáticamente
+- Detecta contingencia e IVA cuando vienen indicados en el presupuesto
+- Permite mostrar u ocultar la contingencia manteniendo el total correcto
+- Permite aplicar descuentos:
+  - al total final
+  - o por partida
+- Permite redondear el importe final al alza
+- Genera un PDF adaptado a impresión
+
+## Flujo de uso
+
+1. Completar la información general del proyecto
+2. Añadir logo, marca y textos de la propuesta
+3. Importar el Excel del presupuesto
+4. Revisar las partidas generales detectadas
+5. Ajustar IVA, contingencia, descuentos y redondeo si hace falta
+6. Descargar la propuesta en PDF
+
+## Partidas del presupuesto
+
+La herramienta está pensada para enseñar al cliente un presupuesto resumido por grandes secciones, no todo el desglose interno.
+
+Ejemplos de bloques que puede detectar:
+
+- transporte
+- personal técnico
+- requisitos técnicos
+- seguro
+- animaciones
+- alquiler de robots
+- contingencia
+
+Cada bloque puede mostrar una breve explicación de qué incluye, sin entrar en detalle excesivo.
+
+## Tecnología
+
+- Next.js
+- React
+- TypeScript
+- Vinext / Cloudflare runtime
+
+## Desarrollo local
+
+Requisitos:
+
+- Node.js 22 o superior
+
+Instalación:
 
 ```bash
 npm install
+```
+
+Entorno local:
+
+```bash
 npm run dev
+```
+
+Build:
+
+```bash
 npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+Tests:
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+npm test
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Estructura principal
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+- `app/page.tsx`: interfaz principal del generador
+- `app/globals.css`: estilos globales
+- `public/admira-logo.png`: logo por defecto de Admira
+- `docs/`: versión estática para publicación simple
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## Repositorios
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+- GitHub: [agonzalez-ux/Generador-Presupuestos](https://github.com/agonzalez-ux/Generador-Presupuestos)
+- Bitbucket: [admira/generador-presupuestos-admira](https://bitbucket.org/admira/generador-presupuestos-admira/src/main/)
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+## Estado
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+Proyecto activo y publicado.
