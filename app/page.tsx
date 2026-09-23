@@ -357,7 +357,16 @@ export default function Home() {
   const clientLabel = client.trim() || "Nombre del cliente";
   const projectLabel = project.trim() || "Título del proyecto";
   const locationLabel = location.trim() || "Ubicación por definir";
-  const datesLabel = dates.trim() || "Fechas por definir";
+  const scopeTitles = includes.map((item) => item.title.trim()).filter(Boolean);
+  const lowerInitial = (value: string) => value ? `${value.charAt(0).toLocaleLowerCase("es-ES")}${value.slice(1)}` : value;
+  const scopeJoiner = (value: string) => /^[ií]|^hi/i.test(value) ? " e " : " y ";
+  const scopeSummary = scopeTitles.length < 2
+    ? scopeTitles[0] || ""
+    : `${scopeTitles.slice(0, -1).map((title, index) => index ? lowerInitial(title) : title).join(", ")}${scopeJoiner(scopeTitles[scopeTitles.length - 1])}${lowerInitial(scopeTitles[scopeTitles.length - 1])}`;
+  const datesLabel = (dates.trim() || "Fechas por definir").replace(
+    /\b(de\s+)(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/gi,
+    (_, prefix: string, month: string) => `${prefix}${month.toLocaleLowerCase("es-ES")}`,
+  );
   const formatLabel = format.trim() || "Formato por definir";
   const audienceLabel = audience.trim() || "Público por definir";
   const contingencyLabel = contingency <= 0 ? "sin contingencia" : showContingency ? "contingencia visible" : "contingencia integrada";
@@ -650,7 +659,7 @@ export default function Home() {
           <div className="fact-card two"><div><label>CLIENTE</label><strong>{clientLabel}</strong></div><div><label>UBICACIÓN</label><strong>{locationLabel}</strong></div></div>
           <div className="summary-card"><label>RESUMEN EJECUTIVO</label><p>{summary}</p></div>
           <div className="facts"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>AUDIENCIA</label><strong>{audienceLabel}</strong></div></div>
-          <div className="scope"><label>ALCANCE PRINCIPAL</label><p>{includes.map((item) => item.title).join(", ")}.</p><em>{closing}</em></div>
+          <div className="scope"><label>ALCANCE PRINCIPAL</label><p>{scopeSummary ? `${scopeSummary}.` : ""}</p><em>{closing}</em></div>
           <ProposalFooter project={projectLabel} page={1} />
         </section>
 
@@ -684,12 +693,12 @@ export default function Home() {
         <div ref={exportRef} className="pdf-capture-surface pdf-export" aria-hidden="true">
           <section className="proposal-page cover-page">
             <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
-            <div className="cover-title"><p>PROPUESTA CREATIVA Y ECONÃ“MICA</p><h1>{projectLabel}</h1><h2>{clientLabel}</h2></div>
+            <div className="cover-title"><p>PROPUESTA CREATIVA Y ECONÓMICA</p><h1>{projectLabel}</h1><h2>{clientLabel}</h2></div>
             <p className="lead">{subtitle}</p>
-            <div className="fact-card two"><div><label>CLIENTE</label><strong>{clientLabel}</strong></div><div><label>UBICACIÃ“N</label><strong>{locationLabel}</strong></div></div>
+            <div className="fact-card two"><div><label>CLIENTE</label><strong>{clientLabel}</strong></div><div><label>UBICACIÓN</label><strong>{locationLabel}</strong></div></div>
             <div className="summary-card"><label>RESUMEN EJECUTIVO</label><p>{summary}</p></div>
             <div className="facts"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>AUDIENCIA</label><strong>{audienceLabel}</strong></div></div>
-            <div className="scope"><label>ALCANCE PRINCIPAL</label><p>{includes.map((item) => item.title).join(", ")}.</p><em>{closing}</em></div>
+            <div className="scope"><label>ALCANCE PRINCIPAL</label><p>{scopeSummary ? `${scopeSummary}.` : ""}</p><em>{closing}</em></div>
             <ProposalFooter project={projectLabel} page={1} />
           </section>
           <section className="proposal-page experience-page">
@@ -697,15 +706,15 @@ export default function Home() {
             <h2>Una propuesta pensada para hacerlo posible</h2>
             <p className="experience-copy">{experience}</p>
             <div className="facts three"><div><label>CALENDARIO</label><strong>{datesLabel}</strong></div><div><label>FORMATO</label><strong>{formatLabel}</strong></div><div><label>ENFOQUE</label><strong>A medida</strong></div></div>
-            <h3>QuÃ© incluye nuestra propuesta</h3>
+            <h3>Qué incluye nuestra propuesta</h3>
             <div className="include-list">{includes.map((item) => <article key={`pdf-${item.id}`}><strong>{item.title}</strong><p>{item.description}</p></article>)}</div>
             <em className="closing-copy">{closing}</em>
             <ProposalFooter project={projectLabel} page={2} />
           </section>
           <section className="proposal-page investment-page">
             <header className="proposal-header"><img src={logo} alt="Logo" /><span>PROPUESTA PARA {clientLabel.toUpperCase()}</span></header>
-            <p className="section-kicker">INVERSIÃ“N</p><h2>Presupuesto por Ã¡reas de servicio</h2>
-            <div className="budget-table"><div className="budget-head"><span>ÃREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={`pdf-${item.id}`}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
+            <p className="section-kicker">INVERSIÓN</p><h2>Presupuesto por áreas de servicio</h2>
+            <div className="budget-table"><div className="budget-head"><span>ÁREA DE SERVICIO</span><span>IMPORTE</span></div>{visibleItems.map((item) => <div className="budget-row" key={`pdf-${item.id}`}><div><strong>{item.area}</strong><small>{item.description}</small></div><strong>{money(item.amount)}</strong></div>)}</div>
             <div className="totals">
               <div><span>{showContingency ? "Subtotal" : "Subtotal de las partidas"}</span><strong>{money(subtotalDisplay)}</strong></div>
               {showContingency && contingency > 0 && <div><span>Contingencia ({contingency} %)</span><strong>{money(contingencyAmount)}</strong></div>}
@@ -714,7 +723,7 @@ export default function Home() {
               <div><span>IVA ({vat} %)</span><strong>{money(adjustedBase * vat / 100)}</strong></div>
               <div className="grand-total"><span>TOTAL PROPUESTA</span><strong>{money(total)}</strong></div>
             </div>
-            <h3>Consideraciones</h3><ul className="notes"><li><strong>PolÃ­tica de pago:</strong> {paymentPolicy}</li>{notes.split("\n").filter(Boolean).map((note) => <li key={`pdf-${note}`}>{note}</li>)}</ul>
+            <h3>Consideraciones</h3><ul className="notes"><li><strong>Política de pago:</strong> {paymentPolicy}</li>{notes.split("\n").filter(Boolean).map((note) => <li key={`pdf-${note}`}>{note}</li>)}</ul>
             <p className="final-line">Una propuesta pensada para convertir una idea en un resultado memorable.</p>
             <ProposalFooter project={projectLabel} page={3} />
           </section>
